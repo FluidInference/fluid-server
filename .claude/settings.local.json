@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(powershell:*)",
+      "Bash(dir:*)",
+      "Bash(cmd /c:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run:*)",
+      "Bash(curl:*)",
+      "Bash(uv add:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.astral.sh)",
+      "Bash(mv:*)",
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(timeout:*)",
+      "Bash(rm:*)",
+      "Bash(.distfluid-server.exe --help)",
+      "Bash(uv pip install:*)",
+      "Bash(python:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
