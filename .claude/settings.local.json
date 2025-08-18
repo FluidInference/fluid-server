@@ -17,7 +17,8 @@
       "Bash(rm:*)",
       "Bash(.distfluid-server.exe --help)",
       "Bash(uv pip install:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(distfluid-server.exe --help)"
     ],
     "deny": [],
     "ask": []
