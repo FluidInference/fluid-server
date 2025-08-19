@@ -34,8 +34,8 @@ Examples:
   # Specify different LLM model
   %(prog)s --llm-model phi-4-mini
   
-  # Use GPU with preloading
-  %(prog)s --device GPU --preload
+  # Disable warm-up
+  %(prog)s --no-warm-up
         """
     )
     
@@ -69,7 +69,7 @@ Examples:
     # Model selection
     parser.add_argument(
         "--llm-model",
-        default="qwen3-8b",
+        default="qwen3-8b-int4-ov",
         help="LLM model to use (directory name in model-path/llm/)"
     )
     parser.add_argument(
@@ -78,19 +78,12 @@ Examples:
         help="Whisper model to use (directory name in model-path/whisper/)"
     )
     
-    # Runtime options
-    parser.add_argument(
-        "--device",
-        default="GPU",
-        choices=["CPU", "GPU", "NPU"],
-        help="Device to run models on (default: GPU)"
-    )
     
     # Features
     parser.add_argument(
-        "--preload",
+        "--no-warm-up",
         action="store_true",
-        help="Preload models on startup"
+        help="Disable warm-up of models on startup"
     )
     parser.add_argument(
         "--idle-timeout",
@@ -103,6 +96,12 @@ Examples:
         action="store_true",
         help="Enable auto-reload for development"
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of worker processes (default: 1, set to 2+ for concurrent processing)"
+    )
     
     # Parse arguments
     args = parser.parse_args()
@@ -111,20 +110,28 @@ Examples:
     config = ServerConfig(
         host=args.host,
         port=args.port,
-        model_path=args.model_path,
-        cache_dir=args.cache_dir,
+        model_path=args.model_path.resolve(),  # Resolve to absolute path
+        cache_dir=args.cache_dir.resolve() if args.cache_dir else None,
         llm_model=args.llm_model,
         whisper_model=args.whisper_model,
-        device=args.device,
-        preload_models=args.preload,
+        warm_up=not args.no_warm_up,
         idle_timeout_minutes=args.idle_timeout
     )
     
-    # Validate that model path exists
+    # Validate that model path exists - create if missing instead of exiting
     if not config.model_path.exists():
-        logger.error(f"Model path does not exist: {config.model_path}")
-        logger.info("Please create the directory or specify a different path with --model-path")
-        sys.exit(1)
+        logger.warning(f"Model path does not exist: {config.model_path}")
+        logger.info("Creating model directory automatically...")
+        try:
+            config.model_path.mkdir(parents=True, exist_ok=True)
+            # Create subdirectories for model types
+            (config.model_path / "llm").mkdir(exist_ok=True)
+            (config.model_path / "whisper").mkdir(exist_ok=True)
+            (config.model_path / "embedding").mkdir(exist_ok=True)
+            logger.info(f"Created model directories at {config.model_path}")
+        except Exception as e:
+            logger.error(f"Failed to create model directory: {e}")
+            logger.info("Server will continue but no models will be available until directory is created")
     
     # Discover available models
     logger.info(f"Discovering models in {config.model_path}")
@@ -150,11 +157,29 @@ Examples:
         else:
             logger.info("No LLM models available - chat completions will not work")
     
-    # Create and run application
-    app = create_app(config)
+    # Set environment variables for worker configuration
+    import os
+    os.environ["FLUID_HOST"] = config.host
+    os.environ["FLUID_PORT"] = str(config.port)
+    os.environ["FLUID_MODEL_PATH"] = str(config.model_path)
+    if config.cache_dir:
+        os.environ["FLUID_CACHE_DIR"] = str(config.cache_dir)
+    os.environ["FLUID_LLM_MODEL"] = config.llm_model
+    os.environ["FLUID_WHISPER_MODEL"] = config.whisper_model
+    os.environ["FLUID_WARM_UP"] = str(config.warm_up).lower()
+    os.environ["FLUID_IDLE_TIMEOUT"] = str(config.idle_timeout_minutes)
     
     # Check if running as frozen executable
     is_frozen = getattr(sys, 'frozen', False)
+    
+    # Determine number of workers
+    num_workers = args.workers
+    if num_workers > 1 and is_frozen:
+        logger.info(f"Using {num_workers} workers with PyInstaller frozen executable")
+    elif num_workers > 1:
+        logger.info(f"Using {num_workers} workers for concurrent processing")
+    else:
+        logger.info("Using single worker (concurrent processing disabled)")
     
     # Configure uvicorn logging - handle frozen executable case
     if is_frozen:
@@ -168,7 +193,7 @@ Examples:
                     "class": "logging.Formatter"
                 },
                 "access": {
-                    "format": '%(asctime)s - %(name)s - %(levelname)s - %(client_addr)s - "%(request_line)s" %(status_code)s',
+                    "format": '%(asctime)s - %(name)s - %(levelname)s - "%(message)s"',
                     "class": "logging.Formatter"
                 },
             },
@@ -197,24 +222,40 @@ Examples:
         log_config["formatters"]["access"]["fmt"] = '%(asctime)s - %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
     
     # Run server
-    uvicorn.run(
-        app if is_frozen else "fluid_server.__main__:app",
-        host=config.host,
-        port=config.port,
-        reload=args.reload and not is_frozen,
-        log_level="info",
-        log_config=log_config,
-        access_log=True
-    )
+    if num_workers > 1 and not is_frozen:
+        # Use string reference for multiple workers in development
+        uvicorn.run(
+            "fluid_server.app:app",
+            host=config.host,
+            port=config.port,
+            reload=args.reload,
+            workers=num_workers,
+            log_level="info",
+            log_config=log_config,
+            access_log=True
+        )
+    else:
+        # Single process mode - works for both development and PyInstaller
+        # Note: For PyInstaller builds, we use optimized async execution within single process
+        if num_workers > 1 and is_frozen:
+            logger.info(f"Using optimized async execution (requested {num_workers} workers, using 1 process with concurrent task handling)")
+        
+        app = create_app(config)
+        uvicorn.run(
+            app,
+            host=config.host,
+            port=config.port,
+            reload=args.reload and not is_frozen,
+            workers=1,
+            log_level="info",
+            log_config=log_config,
+            access_log=True
+        )
 
 
-# For uvicorn reload
-app = None
-if __name__ != "__main__":
-    # Create app for uvicorn when imported
-    config = ServerConfig()
-    app = create_app(config)
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()  # Required for PyInstaller to prevent infinite spawn loop
     main()

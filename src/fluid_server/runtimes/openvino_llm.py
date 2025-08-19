@@ -7,6 +7,7 @@ import asyncio
 import logging
 import time
 from threading import Lock
+from concurrent.futures import ThreadPoolExecutor
 from .base import BaseRuntime
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,19 @@ logger = logging.getLogger(__name__)
 
 class OpenVINOLLMRuntime(BaseRuntime):
     """OpenVINO runtime for LLM models"""
+    
+    # Class-level dedicated thread pool for LLM operations
+    _llm_executor: Optional[ThreadPoolExecutor] = None
+    
+    @classmethod
+    def get_executor(cls) -> ThreadPoolExecutor:
+        """Get or create dedicated LLM thread pool"""
+        if cls._llm_executor is None:
+            cls._llm_executor = ThreadPoolExecutor(
+                max_workers=2, 
+                thread_name_prefix="LLM"
+            )
+        return cls._llm_executor
     
     def __init__(self, model_path: Path, cache_dir: Path, device: str) -> None:
         super().__init__(model_path, cache_dir, device)
@@ -101,11 +115,8 @@ class OpenVINOLLMRuntime(BaseRuntime):
             self.pipeline = None
             raise
     
-    async def generate(self, prompt: str, max_tokens: int, temperature: float, top_p: float) -> str:
-        """Generate text completion"""
-        if not self.is_loaded:
-            await self.load()
-        
+    def _generate_sync(self, prompt: str, max_tokens: int, temperature: float, top_p: float) -> str:
+        """Synchronous text generation for use in executor"""
         with self.pipeline_lock:
             if self.pipeline is None:
                 raise RuntimeError("Pipeline not initialized")
@@ -133,6 +144,24 @@ class OpenVINOLLMRuntime(BaseRuntime):
             except Exception as e:
                 logger.error(f"Generation failed: {e}")
                 raise
+
+    async def generate(self, prompt: str, max_tokens: int, temperature: float, top_p: float) -> str:
+        """Generate text completion"""
+        if not self.is_loaded:
+            await self.load()
+        
+        # Run generation in dedicated LLM executor to avoid blocking
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            self.get_executor(),
+            self._generate_sync,
+            prompt,
+            max_tokens,
+            temperature,
+            top_p
+        )
+        
+        return result
     
     def generate_stream_sync(self, prompt: str, max_tokens: int, temperature: float, top_p: float) -> List[str]:
         """Synchronous streaming generation for use in executor"""
@@ -167,10 +196,10 @@ class OpenVINOLLMRuntime(BaseRuntime):
             await self.load()
         
         try:
-            # Run synchronous generation in executor
+            # Run synchronous generation in dedicated LLM executor
             loop = asyncio.get_event_loop()
             tokens = await loop.run_in_executor(
-                None,
+                self.get_executor(),
                 self.generate_stream_sync,
                 prompt,
                 max_tokens,

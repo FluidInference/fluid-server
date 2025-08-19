@@ -14,6 +14,10 @@ dependencies = [
     "openvino>=2025.2.0",
     "openvino-genai>=2025.2.0",
     "huggingface-hub>=0.20.0",
+    "numpy>=1.24.0",
+    "librosa>=0.10.0",
+    "pyinstaller>=6.15.0",
+    "soundfile>=0.13.1",
 ]
 
 [tool.uv]
@@ -34,11 +38,3 @@ packages = ["src"]
 [project.scripts]
 fluid-server = "fluid_server.__main__:main"
 
-# Type checking with ty
-[tool.ty]
-# Include source directories
-paths = ["src"]
-# Strict mode for better type checking
-strict = true
-# Show error codes for easier debugging
-show-error-codes = true

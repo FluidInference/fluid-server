@@ -3,7 +3,7 @@ Write-Host "=== Fluid Server Model Test ===" -ForegroundColor Cyan
 
 # Parameters
 $modelPath = if ($args[0]) { $args[0] } else { ".\models" }
-$host = "127.0.0.1"
+$serverHost = "127.0.0.1"
 $port = 8080
 
 Write-Host "Model path: $modelPath" -ForegroundColor Cyan
@@ -20,9 +20,9 @@ if (-not (Test-Path $modelPath)) {
 # Start server in background
 Write-Host "`nStarting server..." -ForegroundColor Yellow
 if (Test-Path "src\fluid_server") {
-    $process = Start-Process -FilePath "uv" -ArgumentList "run", "python", "-m", "fluid_server", "--model-path", $modelPath, "--host", $host, "--port", $port, "--preload" -PassThru -WindowStyle Hidden
+    $process = Start-Process -FilePath "uv" -ArgumentList "run", "python", "-m", "fluid_server", "--model-path", $modelPath, "--host", $serverHost, "--port", $port, "--preload" -PassThru -WindowStyle Hidden
 } elseif (Test-Path "dist\fluid-server.exe") {
-    $process = Start-Process -FilePath ".\dist\fluid-server.exe" -ArgumentList "--model-path", $modelPath, "--host", $host, "--port", $port, "--preload" -PassThru -WindowStyle Hidden
+    $process = Start-Process -FilePath ".\dist\fluid-server.exe" -ArgumentList "--model-path", $modelPath, "--host", $serverHost, "--port", $port, "--preload" -PassThru -WindowStyle Hidden
 } else {
     Write-Host "Error: No server found to run." -ForegroundColor Red
     exit 1
@@ -35,14 +35,14 @@ Start-Sleep -Seconds 15
 try {
     # Test health endpoint
     Write-Host "`nTesting health..." -ForegroundColor Yellow
-    $health = Invoke-RestMethod -Uri "http://$host`:$port/health" -Method Get
+    $health = Invoke-RestMethod -Uri "http://$serverHost`:$port/health" -Method Get
     Write-Host "Health Status: $($health.status)" -ForegroundColor Green
     Write-Host "Device: $($health.device)" -ForegroundColor Cyan
     Write-Host "Models loaded: $($health.models_loaded | ConvertTo-Json)" -ForegroundColor Cyan
     
     # Test available models
     Write-Host "`nTesting models endpoint..." -ForegroundColor Yellow
-    $models = Invoke-RestMethod -Uri "http://$host`:$port/v1/models" -Method Get
+    $models = Invoke-RestMethod -Uri "http://$serverHost`:$port/v1/models" -Method Get
     Write-Host "Available models: $($models.data.Count)" -ForegroundColor Green
     foreach ($model in $models.data) {
         Write-Host "  - $($model.id) ($($model.model_type))" -ForegroundColor White
@@ -64,7 +64,7 @@ try {
             temperature = 0.7
         }
         
-        $chatResponse = Invoke-RestMethod -Uri "http://$host`:$port/v1/chat/completions" -Method Post -ContentType "application/json" -Body ($chatRequest | ConvertTo-Json -Depth 10)
+        $chatResponse = Invoke-RestMethod -Uri "http://$serverHost`:$port/v1/chat/completions" -Method Post -ContentType "application/json" -Body ($chatRequest | ConvertTo-Json -Depth 10)
         Write-Host "Chat response: $($chatResponse.choices[0].message.content)" -ForegroundColor Green
     } else {
         Write-Host "`nNo LLM models available for chat testing." -ForegroundColor Yellow

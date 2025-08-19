@@ -50,7 +50,7 @@ async def list_models(
     """
     models = []
     
-    # Add LLM models
+    # Add available LLM models
     for model_name in runtime_manager.available_models.get("llm", []):
         models.append(ModelInfo(
             id=model_name,
@@ -77,7 +77,30 @@ async def list_models(
             model_type="embedding"
         ))
     
-    logger.debug(f"Returning {len(models)} available models")
+    # Add models that are currently downloading or loading
+    logger.debug(f"Download status: {runtime_manager.download_status}")
+    for model_key, status in runtime_manager.download_status.items():
+        if status in ["downloading", "loading"]:
+            model_type, model_name = model_key.split(":", 1)
+            # Check if not already in available models
+            if model_type == "llm" and model_name not in runtime_manager.available_models.get("llm", []):
+                status_text = "downloading..." if status == "downloading" else "loading..."
+                models.append(ModelInfo(
+                    id=f"{model_name} ({status_text})",
+                    created=int(time.time()),
+                    owned_by=status,
+                    model_type="llm"
+                ))
+            elif model_type == "whisper" and model_name not in runtime_manager.available_models.get("whisper", []):
+                status_text = "downloading..." if status == "downloading" else "loading..."
+                models.append(ModelInfo(
+                    id=f"whisper-{model_name} ({status_text})",
+                    created=int(time.time()),
+                    owned_by=status,
+                    model_type="whisper"
+                ))
+    
+    logger.debug(f"Returning {len(models)} models (available + downloading)")
     
     return ModelsResponse(data=models)
 

@@ -49,8 +49,35 @@ async def chat_completions(
                 detail=f"Model '{completion_request.model}' not found. Available models: {available_models}"
             )
         
-        # Get LLM runtime for the specific model
-        llm = await runtime_manager.get_llm(completion_request.model)
+        # Check if model is still downloading or loading
+        model_key = f"llm:{completion_request.model}"
+        if model_key in runtime_manager.download_status:
+            status = runtime_manager.download_status[model_key]
+            if status == "downloading":
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Model '{completion_request.model}' is currently downloading. Please try again later."
+                )
+            elif status == "loading":
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Model '{completion_request.model}' is currently loading (this can take 1-2 minutes). Please try again shortly."
+                )
+            elif status == "failed":
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Model '{completion_request.model}' failed to load. Please check logs."
+                )
+        
+        # Get LLM runtime for the specific model with error recovery
+        try:
+            llm = await runtime_manager.get_llm(completion_request.model)
+        except RuntimeError as e:
+            logger.warning(f"LLM model not available: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"Model '{completion_request.model}' is temporarily unavailable. Please try again later."
+            )
         
         # Build prompt from messages
         prompt = _build_prompt(completion_request.messages)

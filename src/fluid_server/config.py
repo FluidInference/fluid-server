@@ -1,7 +1,7 @@
 """
 Server configuration management
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -17,14 +17,12 @@ class ServerConfig:
     cache_dir: Optional[Path] = None     # Defaults to model_path/cache
     
     # Model selection
-    llm_model: str = "qwen3-8b"          # Which LLM to load
-    whisper_model: str = "whisper-tiny"  # Which Whisper to load
+    llm_model: str = "qwen3-8b-int4-ov"                           # Which LLM to load
+    whisper_model: str = "whisper-large-v3-turbo-fp16-ov-npu"  # Which Whisper to load
     
-    # Runtime
-    device: str = "GPU"                  # CPU, GPU, or NPU
     
     # Features
-    preload_models: bool = False         # Preload on startup
+    warm_up: bool = True                 # Warm up models on startup
     max_memory_gb: float = 8.0          # Memory limit
     idle_timeout_minutes: int = 5       # Idle timeout for unloading
     
@@ -33,13 +31,33 @@ class ServerConfig:
     default_temperature: float = 0.7
     default_top_p: float = 0.95
     
+    # Private field to track if __post_init__ has been called
+    _initialized: bool = field(default=False, init=False, repr=False)
+    
     def __post_init__(self) -> None:
         """Set defaults after initialization"""
-        self.model_path = Path(self.model_path)
+        # Prevent multiple initialization
+        if self._initialized:
+            return
+            
+        # Convert to Path object and ensure it's absolute
+        path_obj = Path(self.model_path)
+        if not path_obj.is_absolute():
+            self.model_path = path_obj.resolve()
+        else:
+            self.model_path = path_obj
+        
         if self.cache_dir is None:
             self.cache_dir = self.model_path / "cache"
         else:
-            self.cache_dir = Path(self.cache_dir)
+            cache_path_obj = Path(self.cache_dir)
+            if not cache_path_obj.is_absolute():
+                self.cache_dir = cache_path_obj.resolve()
+            else:
+                self.cache_dir = cache_path_obj
         
         # Create cache directory if it doesn't exist
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Mark as initialized
+        self._initialized = True

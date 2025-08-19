@@ -2,7 +2,7 @@
 Health check endpoint
 """
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Depends
 from ..models.openai import HealthStatus
 from ..managers.runtime_manager import RuntimeManager
 from .. import __version__
@@ -11,24 +11,60 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def get_runtime_manager(request: Request) -> RuntimeManager:
+    """Dependency to get runtime manager"""
+    return request.app.state.runtime_manager
+
+
 @router.get("/health", response_model=HealthStatus)
-async def health_check() -> HealthStatus:
+async def health_check(runtime_manager: RuntimeManager = Depends(get_runtime_manager)) -> HealthStatus:
     """
     Health check endpoint
         
     Returns:
-        Server health status
+        Server health status including warm-up progress
     """
     # Get available devices
     available_devices = _get_available_devices()
     
-    # For now, return basic health status
-    # TODO: Get runtime manager properly via dependency injection
+    # Determine current device and models loaded
+    current_device = "unknown"
+    models_loaded = {}
+    
+    if runtime_manager.current_runtime:
+        current_device = runtime_manager.current_runtime.device
+        model_type = "llm" if hasattr(runtime_manager.current_runtime, 'pipeline') and hasattr(runtime_manager.current_runtime.pipeline, 'generate') else "whisper"
+        models_loaded[model_type] = True
+    
+    # Determine overall status based on warm-up
+    if runtime_manager.warmup_status.get("in_progress", False):
+        status = "warming_up"
+    elif runtime_manager.warmup_status.get("whisper") == "ready" or runtime_manager.warmup_status.get("llm") == "ready":
+        status = "ready"
+    else:
+        status = "ready"  # Default to ready if no warm-up info
+    
+    # Create warmup status copy for response (exclude start_time for cleaner response)
+    warmup_status_response = None
+    if runtime_manager.warmup_status.get("start_time") or runtime_manager.warmup_status.get("in_progress"):
+        warmup_status_response = {
+            "in_progress": runtime_manager.warmup_status.get("in_progress", False),
+            "whisper": runtime_manager.warmup_status.get("whisper", "pending"),
+            "llm": runtime_manager.warmup_status.get("llm", "pending"),
+            "current_task": runtime_manager.warmup_status.get("current_task", "")
+        }
+        # Add elapsed time if warm-up is running
+        if runtime_manager.warmup_status.get("start_time") and runtime_manager.warmup_status.get("in_progress"):
+            import time
+            elapsed = int(time.time() - runtime_manager.warmup_status["start_time"])
+            warmup_status_response["elapsed_seconds"] = elapsed
+    
     return HealthStatus(
-        status="ready",
-        models_loaded={},
-        device="unknown",
+        status=status,
+        models_loaded=models_loaded,
+        device=current_device,
         available_devices=available_devices,
+        warmup_status=warmup_status_response,
         version=__version__
     )
 

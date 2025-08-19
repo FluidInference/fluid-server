@@ -29,12 +29,13 @@ uv pip install pyinstaller
 # Create the executable
 Write-Host "`nBuilding executable with PyInstaller..." -ForegroundColor Yellow
 
-# Run PyInstaller with all necessary options
+# Run PyInstaller with all necessary options using module syntax
 uv run pyinstaller --onefile `
     --name fluid-server `
     --noconsole `
     --hidden-import=openvino `
     --hidden-import=openvino_genai `
+    --hidden-import=openvino_tokenizers `
     --hidden-import=openvino.runtime `
     --hidden-import=openvino.properties `
     --hidden-import=uvicorn.logging `
@@ -48,10 +49,24 @@ uv run pyinstaller --onefile `
     --hidden-import=uvicorn.lifespan `
     --hidden-import=uvicorn.lifespan.on `
     --hidden-import=uvicorn.lifespan.off `
+    --hidden-import=fluid_server.app `
+    --hidden-import=librosa `
+    --hidden-import=scipy `
+    --hidden-import=scipy.signal `
+    --hidden-import=scipy.stats `
+    --hidden-import=scipy.stats._distn_infrastructure `
+    --hidden-import=scipy.stats._stats `
+    --hidden-import=scipy.stats.distributions `
+    --hidden-import=scipy.io `
+    --hidden-import=scipy.fft `
+    --hidden-import=numpy `
     --collect-all=openvino `
     --collect-all=openvino_genai `
+    --collect-all=openvino_tokenizers `
+    --collect-all=librosa `
+    --collect-all=scipy `
     --log-level=INFO `
-    src\fluid_server\__main__.py
+    (Get-Item "src\fluid_server\__main__.py").FullName
 
 # Check if build was successful
 if (Test-Path "dist/fluid-server.exe") {

@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting Fluid Server...")
     logger.info(f"Model path: {config.model_path}")
     logger.info(f"Cache directory: {config.cache_dir}")
-    logger.info(f"Device: {config.device}")
+    logger.info("Device assignment: GPU for LLM, NPU for Whisper")
     
     # Initialize runtime manager
     runtime_manager = RuntimeManager(config)
@@ -87,7 +87,9 @@ def create_app(config: ServerConfig) -> FastAPI:
     # Override dependencies in routers
     chat.router.dependency_overrides = {RuntimeManager: get_runtime_manager}
     models.router.dependency_overrides = {RuntimeManager: get_runtime_manager}
-    audio.router.dependency_overrides = {RuntimeManager: get_runtime_manager}
+    # For audio, we need to override the specific function
+    from .api.v1.audio import get_runtime_manager as audio_get_runtime_manager
+    audio.router.dependency_overrides = {audio_get_runtime_manager: get_runtime_manager}
     health.router.dependency_overrides = {RuntimeManager: get_runtime_manager}
     
     # Include routers
@@ -113,3 +115,28 @@ def create_app(config: ServerConfig) -> FastAPI:
         )
     
     return app
+
+
+# Global app factory function for uvicorn string reference
+def create_worker_app() -> FastAPI:
+    """Create app instance for worker process using environment config"""
+    import os
+    from pathlib import Path
+    
+    config = ServerConfig(
+        host=os.getenv("FLUID_HOST", "127.0.0.1"),
+        port=int(os.getenv("FLUID_PORT", "8080")),
+        model_path=Path(os.getenv("FLUID_MODEL_PATH", "./models")),
+        cache_dir=Path(os.getenv("FLUID_CACHE_DIR")) if os.getenv("FLUID_CACHE_DIR") else None,
+        llm_model=os.getenv("FLUID_LLM_MODEL", "qwen3-8b-int4-ov"),
+        whisper_model=os.getenv("FLUID_WHISPER_MODEL", "whisper-tiny"),
+        warm_up=os.getenv("FLUID_WARM_UP", "true").lower() == "true",
+        idle_timeout_minutes=int(os.getenv("FLUID_IDLE_TIMEOUT", "5"))
+    )
+    
+    logger.info(f"Initializing worker app with config: {config}")
+    return create_app(config)
+
+
+# For PyInstaller compatibility, directly assign the factory function
+app = create_worker_app
