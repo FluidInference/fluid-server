@@ -12,7 +12,7 @@ on:
 
 jobs:
   build-matrix:
-    name: Build Windows ARM64
+    name: Build Windows x64
     runs-on: windows-latest
     
     steps:
@@ -30,29 +30,30 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
       
-      - name: Build executable with PyInstaller (Windows ARM64)
+      - name: Build executable with PyInstaller (Windows x64)
         shell: pwsh
         run: |
-          # Use the build.ps1 script which has proper ARM64 configuration
+          # Use the build.ps1 script which detects and builds for current architecture
+          # GitHub Actions runners are x64, so this will build for x64
           .\scripts\build.ps1
       
-      - name: Create archive (Windows ARM64)
+      - name: Create archive (Windows x64)
         shell: pwsh
         run: |
-          Compress-Archive -Path dist\* -DestinationPath "fluid-server-windows-arm64.zip"
+          Compress-Archive -Path dist\* -DestinationPath "fluid-server-windows-x64.zip"
       
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fluid-server-windows-arm64
-          path: fluid-server-windows-arm64.zip
+          name: fluid-server-windows-x64
+          path: fluid-server-windows-x64.zip
           retention-days: 30
       
       - name: Upload to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: fluid-server-windows-arm64.zip
+          files: fluid-server-windows-x64.zip
           fail_on_unmatched_files: false
 
   verify-builds:
@@ -66,7 +67,7 @@ jobs:
         run: |
           echo "Build completed"
           echo "Artifacts available:"
-          echo "- Windows ARM64 (Qualcomm)"
+          echo "- Windows x64"
       
       - name: Download all artifacts
         uses: actions/download-artifact@v5

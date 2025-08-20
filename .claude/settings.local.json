@@ -56,7 +56,8 @@
       "Bash(\".venv/Scripts/python.exe\" -m PyInstaller --onefile --name fluid-server --noconsole --hidden-import=fluid_server.app --hidden-import=uvicorn.logging --hidden-import=uvicorn.loops --hidden-import=uvicorn.loops.auto --hidden-import=uvicorn.protocols --hidden-import=uvicorn.protocols.http --hidden-import=uvicorn.protocols.http.auto --hidden-import=uvicorn.protocols.websockets --hidden-import=uvicorn.protocols.websockets.auto --hidden-import=uvicorn.lifespan --hidden-import=uvicorn.lifespan.on --hidden-import=uvicorn.lifespan.off --log-level=WARN \"src\\fluid_server\\__main__.py\")",
       "Bash(\".venv/Scripts/python.exe\" -m PyInstaller --onefile --name fluid-server --noconsole --hidden-import=fluid_server.app --hidden-import=uvicorn.logging --hidden-import=uvicorn.loops --hidden-import=uvicorn.loops.auto --hidden-import=uvicorn.protocols --hidden-import=uvicorn.protocols.http --hidden-import=uvicorn.protocols.http.auto --hidden-import=uvicorn.protocols.websockets --hidden-import=uvicorn.protocols.websockets.auto --hidden-import=uvicorn.lifespan --hidden-import=uvicorn.lifespan.on --hidden-import=uvicorn.lifespan.off --log-level=ERROR \"src\\fluid_server\\__main__.py\")",
       "Bash(PYTHONPATH=src timeout 15 uv run python -m fluid_server --host 127.0.0.1 --port 8092 --workers 2 --no-warm-up --model-path \"C:\\Users\\brand\\AppData\\Local\\Slipbox\\Models\")",
-      "Bash(PYTHONPATH=src timeout 15 uv run python -m fluid_server --host 127.0.0.1 --port 8093 --workers 1 --no-warm-up --llm-model qwen3-8b-int8-ov --model-path \"C:\\Users\\brand\\AppData\\Local\\Slipbox\\Models\")"
+      "Bash(PYTHONPATH=src timeout 15 uv run python -m fluid_server --host 127.0.0.1 --port 8093 --workers 1 --no-warm-up --llm-model qwen3-8b-int8-ov --model-path \"C:\\Users\\brand\\AppData\\Local\\Slipbox\\Models\")",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": [],

@@ -1,21 +1,15 @@
-# Fluid Server Build Script for Windows
-# Builds a standalone .exe using PyInstaller for the current architecture
+# Fluid Server Build Script for Windows x64
+# Explicitly builds a standalone .exe for x64 architecture
 
-Write-Host "=== Fluid Server PyInstaller Build ===" -ForegroundColor Cyan
+Write-Host "=== Fluid Server PyInstaller Build (x64) ===" -ForegroundColor Cyan
 
-# Detect system architecture
+# Check architecture and warn if not x64
 $arch = [System.Environment]::GetEnvironmentVariable("PROCESSOR_ARCHITECTURE")
-if ($arch -eq "ARM64") {
-    Write-Host "Detected ARM64 architecture" -ForegroundColor Green
-    $archName = "arm64"
-} elseif ($arch -eq "AMD64") {
-    Write-Host "Detected x64 (AMD64) architecture" -ForegroundColor Green
-    $archName = "x64"
-} else {
-    Write-Host "Detected architecture: $arch" -ForegroundColor Yellow
-    $archName = $arch.ToLower()
+if ($arch -ne "AMD64") {
+    Write-Host "Warning: Current architecture is $arch, but building for x64" -ForegroundColor Yellow
+    Write-Host "Note: Cross-compilation may not work properly with PyInstaller" -ForegroundColor Yellow
+    Write-Host ""
 }
-Write-Host ""
 
 # Check if uv is available
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
@@ -40,17 +34,25 @@ Write-Host "`nInstalling dependencies..." -ForegroundColor Yellow
 uv pip install -e .
 uv pip install pyinstaller
 
-# Create the executable
-Write-Host "`nBuilding executable with PyInstaller for $archName..." -ForegroundColor Yellow
+# Create the executable for x64
+Write-Host "`nBuilding executable with PyInstaller for x64..." -ForegroundColor Yellow
 
-# Run PyInstaller using the spec file (builds for current architecture)
-uv run pyinstaller fluid-server.spec --noconfirm --clean --log-level=INFO
+# Create a temporary spec file with x64 target
+$specContent = Get-Content "fluid-server.spec" -Raw
+$specContent = $specContent -replace '# target_arch can be set.*\r?\n.*# By default.*', "target_arch='x86_64',  # Explicitly target x64 architecture"
+$specContent | Out-File -FilePath "fluid-server-x64.spec" -Encoding UTF8
+
+# Run PyInstaller with the x64 spec
+uv run pyinstaller fluid-server-x64.spec --noconfirm --clean --log-level=INFO
+
+# Clean up temporary spec
+Remove-Item -Path "fluid-server-x64.spec" -Force
 
 # Check if build was successful
 if (Test-Path "dist/fluid-server.exe") {
     $size = (Get-Item "dist/fluid-server.exe").Length / 1MB
     Write-Host "`nBuild successful!" -ForegroundColor Green
-    Write-Host "Architecture: $archName" -ForegroundColor Cyan
+    Write-Host "Architecture: x64" -ForegroundColor Cyan
     Write-Host "Executable: dist/fluid-server.exe" -ForegroundColor Cyan
     Write-Host ("Size: {0:N2} MB" -f $size) -ForegroundColor Cyan
     

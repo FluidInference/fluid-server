@@ -36,10 +36,16 @@ jobs:
         run: uv run ruff check src/ tests/
       
       - name: Run type checking
-        run: uv run ty check
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            pwsh -File scripts/typecheck.ps1
+          else
+            bash scripts/typecheck.sh
+          fi
+        shell: bash
 
   test-build:
-    name: Test Build (Windows ARM64)
+    name: Test Build (Windows x64)
     runs-on: windows-latest
     
     steps:
@@ -60,7 +66,7 @@ jobs:
       - name: Verify imports
         run: uv run python -c "from fluid_server import app; print('Import successful')"
       
-      - name: Run server health check (Windows ARM64)
+      - name: Run server health check (Windows x64)
         run: |
           Start-Process -FilePath "uv" -ArgumentList "run", "python", "-m", "fluid_server" -PassThru -WindowStyle Hidden | Out-Null
           Start-Sleep -Seconds 5
@@ -69,7 +75,7 @@ jobs:
         shell: pwsh
 
   build-executable:
-    name: Build Executable (Windows ARM64)
+    name: Build Executable (Windows x64)
     runs-on: windows-latest
     
     steps:
@@ -87,13 +93,14 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
       
-      - name: Build executable with PyInstaller (Windows ARM64)
+      - name: Build executable with PyInstaller (Windows x64)
         shell: pwsh
         run: |
-          # Use the build.ps1 script which has proper ARM64 configuration
+          # Use the build.ps1 script which detects and builds for current architecture
+          # GitHub Actions runners are x64, so this will build for x64
           .\scripts\build.ps1
       
-      - name: Test executable (Windows ARM64)
+      - name: Test executable (Windows x64)
         shell: pwsh
         run: |
           .\dist\fluid-server.exe --help
@@ -105,6 +112,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fluid-server-windows-arm64
+          name: fluid-server-windows-x64
           path: dist/
           retention-days: 7

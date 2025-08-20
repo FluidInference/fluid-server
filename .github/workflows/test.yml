@@ -40,7 +40,13 @@ jobs:
           uv run ruff check src/ tests/
       
       - name: Run type checking
-        run: uv run ty check
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            pwsh -File scripts/typecheck.ps1
+          else
+            bash scripts/typecheck.sh
+          fi
+        shell: bash
       
       - name: Test server startup
         run: |
@@ -70,7 +76,15 @@ jobs:
         run: uv sync --all-extras --dev
       
       - name: Build with PyInstaller
-        run: uv run pyinstaller fluid-server.spec --noconfirm --clean
+        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            # Use the build script on Windows which detects architecture
+            .\scripts\build.ps1
+          else
+            # Direct PyInstaller call for non-Windows platforms
+            uv run pyinstaller fluid-server.spec --noconfirm --clean
+          fi
       
       - name: Check executable exists
         shell: bash

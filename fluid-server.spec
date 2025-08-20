@@ -59,7 +59,8 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch='arm64',  # Explicitly target ARM64 architecture
+    # target_arch can be set to 'arm64' or 'x86_64' if needed
+    # By default, PyInstaller builds for the host architecture
     codesign_identity=None,
     entitlements_file=None,
 )
