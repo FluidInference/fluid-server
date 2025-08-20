@@ -206,7 +206,8 @@ Examples:
         }
     else:
         # Standard uvicorn config for development
-        log_config = uvicorn.config.LOGGING_CONFIG.copy()
+        from uvicorn.config import LOGGING_CONFIG
+        log_config = LOGGING_CONFIG.copy()
         log_config["formatters"]["default"]["fmt"] = "%(asctime)s - %(levelprefix)s %(message)s"
         log_config["formatters"]["access"]["fmt"] = (
             '%(asctime)s - %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'

@@ -16,7 +16,7 @@ def retry_async(
     delay: float = 1.0,
     backoff_factor: float = 2.0,
     exceptions: type[Exception] | tuple[type[Exception], ...] = Exception,
-    on_retry: Callable[[int, Exception], None] = None,
+    on_retry: Callable[[int, Exception], None] | None = None,
 ):
     """
     Async retry decorator with exponential backoff
@@ -44,12 +44,12 @@ def retry_async(
                     if attempt == max_attempts - 1:
                         # Last attempt, re-raise the exception
                         logger.error(
-                            f"Function {func.__name__} failed after {max_attempts} attempts: {e}"
+                            f"Function {getattr(func, '__name__', 'unknown')} failed after {max_attempts} attempts: {e}"
                         )
                         raise e
 
                     logger.warning(
-                        f"Attempt {attempt + 1}/{max_attempts} failed for {func.__name__}: {e}. Retrying in {current_delay}s..."
+                        f"Attempt {attempt + 1}/{max_attempts} failed for {getattr(func, '__name__', 'unknown')}: {e}. Retrying in {current_delay}s..."
                     )
 
                     if on_retry:
@@ -72,7 +72,7 @@ def retry_sync(
     delay: float = 1.0,
     backoff_factor: float = 2.0,
     exceptions: type[Exception] | tuple[type[Exception], ...] = Exception,
-    on_retry: Callable[[int, Exception], None] = None,
+    on_retry: Callable[[int, Exception], None] | None = None,
 ):
     """
     Synchronous retry decorator with exponential backoff
@@ -102,12 +102,12 @@ def retry_sync(
                     if attempt == max_attempts - 1:
                         # Last attempt, re-raise the exception
                         logger.error(
-                            f"Function {func.__name__} failed after {max_attempts} attempts: {e}"
+                            f"Function {getattr(func, '__name__', 'unknown')} failed after {max_attempts} attempts: {e}"
                         )
                         raise e
 
                     logger.warning(
-                        f"Attempt {attempt + 1}/{max_attempts} failed for {func.__name__}: {e}. Retrying in {current_delay}s..."
+                        f"Attempt {attempt + 1}/{max_attempts} failed for {getattr(func, '__name__', 'unknown')}: {e}. Retrying in {current_delay}s..."
                     )
 
                     if on_retry:

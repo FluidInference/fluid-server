@@ -46,7 +46,11 @@ class OpenVINOLLMRuntime(BaseRuntime):
             import openvino_genai as ov_genai
 
             # Set OpenVINO logging level
-            ov.properties.log.level = 0
+            try:
+                ov.properties.log.level = 0  # type: ignore
+            except AttributeError:
+                # Fallback for older OpenVINO versions
+                pass
 
             # Use model-specific cache subdirectory
             model_cache = self.cache_dir / "llm" / self.model_name
@@ -90,7 +94,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
                 "KV_CACHE_PRECISION": "u8",
             }
 
-            self.pipeline = ov_genai.LLMPipeline(str(self.model_path), self.device, **config_dict)
+            self.pipeline = ov_genai.LLMPipeline(self.model_path, self.device, **config_dict)
 
             load_time = time.time() - start_time
             logger.info(f"LLM loaded successfully in {load_time:.1f}s")

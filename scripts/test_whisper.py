@@ -50,7 +50,7 @@ class FluidServerTester:
                         print("Server started successfully")
                         time.sleep(5)  # Wait for model warmup
                         return True
-                except requests.exceptions.RequestException:
+                except requests.RequestException:
                     pass
                 time.sleep(1)
                 print(f"  Waiting... ({i+1}/60)")

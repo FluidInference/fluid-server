@@ -8,7 +8,7 @@ import sys
 import argparse
 from pathlib import Path
 
-def convert_audio(input_file: str, output_file: str = None) -> str:
+def convert_audio(input_file: str, output_file: str | None = None) -> str | None:
     """Convert audio file to 16kHz mono WAV format"""
     try:
         import librosa

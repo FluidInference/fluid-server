@@ -172,7 +172,7 @@ async def download_model(
         api = HfApi()
         try:
             repo_info = api.repo_info(request.repo_id)
-            logger.info(f"Found repo: {repo_info.id} ({repo_info.modelId})")
+            logger.info(f"Found repo: {repo_info.id}")
         except Exception as e:
             raise HTTPException(
                 status_code=404,

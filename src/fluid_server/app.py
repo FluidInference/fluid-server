@@ -82,19 +82,23 @@ def create_app(config: ServerConfig) -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Override dependencies for the whole app
+    from .api.v1.chat import get_runtime_manager as chat_get_runtime_manager
+    from .api.v1.models import get_runtime_manager as models_get_runtime_manager
+    from .api.v1.audio import get_runtime_manager as audio_get_runtime_manager
+    from .api.health import get_runtime_manager as health_get_runtime_manager
+
     # Dependency to get runtime manager
-    async def get_runtime_manager() -> RuntimeManager:
+    def get_runtime_manager() -> RuntimeManager:
         """Get runtime manager dependency"""
         return app.state.runtime_manager
 
-    # Override dependencies in routers
-    chat.router.dependency_overrides = {RuntimeManager: get_runtime_manager}
-    models.router.dependency_overrides = {RuntimeManager: get_runtime_manager}
-    # For audio, we need to override the specific function
-    from .api.v1.audio import get_runtime_manager as audio_get_runtime_manager
-
-    audio.router.dependency_overrides = {audio_get_runtime_manager: get_runtime_manager}
-    health.router.dependency_overrides = {RuntimeManager: get_runtime_manager}
+    app.dependency_overrides = {
+        chat_get_runtime_manager: get_runtime_manager,
+        models_get_runtime_manager: get_runtime_manager,
+        audio_get_runtime_manager: get_runtime_manager,
+        health_get_runtime_manager: get_runtime_manager,
+    }
 
     # Include routers
     app.include_router(health.router)
@@ -127,7 +131,7 @@ def create_worker_app() -> FastAPI:
         host=os.getenv("FLUID_HOST", "127.0.0.1"),
         port=int(os.getenv("FLUID_PORT", "8080")),
         model_path=Path(os.getenv("FLUID_MODEL_PATH", "./models")),
-        cache_dir=Path(os.getenv("FLUID_CACHE_DIR")) if os.getenv("FLUID_CACHE_DIR") else None,
+        cache_dir=Path(os.getenv("FLUID_CACHE_DIR", "")) if os.getenv("FLUID_CACHE_DIR") else None,
         llm_model=os.getenv("FLUID_LLM_MODEL", "qwen3-8b-int4-ov"),
         whisper_model=os.getenv("FLUID_WHISPER_MODEL", "whisper-tiny"),
         warm_up=os.getenv("FLUID_WARM_UP", "true").lower() == "true",

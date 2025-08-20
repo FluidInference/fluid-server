@@ -35,7 +35,7 @@ class RuntimeManager:
         self.loaded_llm_model: str | None = None
         self.loaded_whisper_model: str | None = None
         self.available_models = ModelDiscovery.find_models(config.model_path)
-        self.downloader = ModelDownloader(config.model_path, config.cache_dir)
+        self.downloader = ModelDownloader(config.model_path, config.cache_dir or config.model_path / "cache")
         self._idle_task: asyncio.Task | None = None
         self.download_status: dict[str, str] = {}  # Track download status for models
 
@@ -176,7 +176,7 @@ class RuntimeManager:
             self.warmup_status["current_task"] = f"Error: {str(e)}"
             logger.error(f"Error during model warm-up: {e}")
 
-    async def load_llm(self, model_name: str = None) -> OpenVINOLLMRuntime:
+    async def load_llm(self, model_name: str | None = None) -> OpenVINOLLMRuntime | None:
         """Load an LLM model (keeps both LLM and Whisper in memory)"""
         # Use provided model name or fall back to configured default
         model_to_load = model_name or self.config.llm_model
@@ -223,7 +223,7 @@ class RuntimeManager:
         )
         async def _load_with_retry():
             runtime = OpenVINOLLMRuntime(
-                model_path=model_path, cache_dir=self.config.cache_dir, device="GPU"
+                model_path=model_path, cache_dir=self.config.cache_dir or self.config.model_path / "cache", device="GPU"
             )
             await runtime.load()
             return runtime
@@ -246,7 +246,7 @@ class RuntimeManager:
             logger.info("Server will continue without this LLM model")
             return None  # Return None instead of crashing
 
-    async def load_whisper(self, model_name: str = None) -> OpenVINOWhisperRuntime:
+    async def load_whisper(self, model_name: str | None = None) -> OpenVINOWhisperRuntime | None:
         """Load a Whisper model (keeps both LLM and Whisper in memory)"""
         # Use provided model name or fall back to configured default
         model_to_load = model_name or self.config.whisper_model
@@ -295,7 +295,7 @@ class RuntimeManager:
         )
         async def _load_with_retry():
             runtime = OpenVINOWhisperRuntime(
-                model_path=model_path, cache_dir=self.config.cache_dir, device="NPU"
+                model_path=model_path, cache_dir=self.config.cache_dir or self.config.model_path / "cache", device="NPU"
             )
             await runtime.load()
             return runtime
@@ -318,7 +318,7 @@ class RuntimeManager:
             logger.info("Server will continue without this Whisper model")
             return None  # Return None instead of crashing
 
-    async def get_llm(self, model_name: str = None) -> OpenVINOLLMRuntime:
+    async def get_llm(self, model_name: str | None = None) -> OpenVINOLLMRuntime:
         """Get LLM runtime, loading if necessary"""
         model_to_get = model_name or self.config.llm_model
 
@@ -334,7 +334,7 @@ class RuntimeManager:
 
         return self.llm_runtime
 
-    async def get_whisper(self, model_name: str = None) -> OpenVINOWhisperRuntime:
+    async def get_whisper(self, model_name: str | None = None) -> OpenVINOWhisperRuntime:
         """Get Whisper runtime, loading if necessary"""
         model_to_get = model_name or self.config.whisper_model
 
