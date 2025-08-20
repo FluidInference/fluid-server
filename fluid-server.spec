@@ -1,6 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['src\\fluid_server\\__main__.py'],
     pathex=[],

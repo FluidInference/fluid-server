@@ -1,0 +1,168 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/pr.yml'
+
+jobs:
+  lint-and-type-check:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+      
+      - name: Set up Python
+        run: uv python install 3.10
+      
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      
+      - name: Run ruff format check
+        run: uv run ruff format --check src/ tests/
+      
+      - name: Run ruff linter
+        run: uv run ruff check src/ tests/
+      
+      - name: Run type checking
+        run: uv run ty
+
+  test-build:
+    name: Test Build (${{ matrix.os }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x64
+            python-arch: x64
+          - os: ubuntu-latest
+            arch: arm64
+            python-arch: aarch64
+          - os: windows-latest
+            arch: x64
+            python-arch: x64
+          - os: macos-latest
+            arch: x64
+            python-arch: x64
+          - os: macos-latest
+            arch: arm64
+            python-arch: aarch64
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up QEMU (for ARM64 on Linux)
+        if: matrix.arch == 'arm64' && runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+      
+      - name: Set up Python
+        run: uv python install 3.10
+      
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      
+      - name: Verify imports
+        run: uv run python -c "from fluid_server import app; print('Import successful')"
+      
+      - name: Run server health check
+        run: |
+          uv run python -m fluid_server &
+          SERVER_PID=$!
+          sleep 5
+          curl -f http://localhost:8080/health || exit 1
+          kill $SERVER_PID || true
+        shell: bash
+        if: runner.os != 'Windows'
+      
+      - name: Run server health check (Windows)
+        run: |
+          Start-Process -FilePath "uv" -ArgumentList "run", "python", "-m", "fluid_server" -PassThru -WindowStyle Hidden | Out-Null
+          Start-Sleep -Seconds 5
+          Invoke-WebRequest -Uri http://localhost:8080/health -UseBasicParsing
+          Get-Process python | Stop-Process -Force
+        shell: pwsh
+        if: runner.os == 'Windows'
+
+  build-executable:
+    name: Build Executable (${{ matrix.os }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x64
+            artifact-name: fluid-server-linux-x64
+          - os: windows-latest
+            arch: x64
+            artifact-name: fluid-server-windows-x64
+          - os: macos-latest
+            arch: x64
+            artifact-name: fluid-server-macos-x64
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+      
+      - name: Set up Python
+        run: uv python install 3.10
+      
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      
+      - name: Build executable with PyInstaller
+        run: |
+          uv run pyinstaller fluid-server.spec --noconfirm --clean
+      
+      - name: Test executable (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          ./dist/fluid-server --help
+          ./dist/fluid-server &
+          SERVER_PID=$!
+          sleep 5
+          curl -f http://localhost:8080/health || exit 1
+          kill $SERVER_PID || true
+      
+      - name: Test executable (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\dist\fluid-server.exe --help
+          Start-Process -FilePath ".\dist\fluid-server.exe" -PassThru -WindowStyle Hidden | Out-Null
+          Start-Sleep -Seconds 5
+          Invoke-WebRequest -Uri http://localhost:8080/health -UseBasicParsing
+          Get-Process fluid-server | Stop-Process -Force
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: dist/
+          retention-days: 7
