@@ -40,7 +40,7 @@ jobs:
           uv run ruff check src/ tests/
       
       - name: Run type checking
-        run: uv run ty
+        run: uv run ty check
       
       - name: Test server startup
         run: |
