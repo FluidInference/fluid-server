@@ -14,7 +14,7 @@ uv add --dev ty
 
 echo ""
 echo "Running type check with ty..."
-uv run ty
+uv run ty check
 
 if [ $? -eq 0 ]; then
     echo ""
