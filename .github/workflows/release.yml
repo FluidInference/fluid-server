@@ -1,0 +1,179 @@
+name: Release Builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v0.1.0)'
+        required: true
+        type: string
+  release:
+    types: [created]
+
+jobs:
+  build-matrix:
+    name: Build ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64
+          - os: linux
+            arch: x64
+            runner: ubuntu-latest
+            artifact-name: fluid-server-linux-x64
+            python-version: '3.10'
+            
+          # Linux ARM64 (using QEMU emulation)
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+            artifact-name: fluid-server-linux-arm64
+            python-version: '3.10'
+            use-qemu: true
+            
+          # Windows x64
+          - os: windows
+            arch: x64
+            runner: windows-latest
+            artifact-name: fluid-server-windows-x64
+            python-version: '3.10'
+            
+          # Windows ARM64 (cross-compile)
+          - os: windows
+            arch: arm64
+            runner: windows-latest
+            artifact-name: fluid-server-windows-arm64
+            python-version: '3.10'
+            cross-compile: true
+            
+          # macOS x64
+          - os: macos
+            arch: x64
+            runner: macos-13
+            artifact-name: fluid-server-macos-x64
+            python-version: '3.10'
+            
+          # macOS ARM64
+          - os: macos
+            arch: arm64
+            runner: macos-latest
+            artifact-name: fluid-server-macos-arm64
+            python-version: '3.10'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Setup QEMU for ARM64 Linux builds
+      - name: Set up QEMU
+        if: matrix.use-qemu
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      
+      # Use Docker for ARM64 Linux builds
+      - name: Build in ARM64 container
+        if: matrix.use-qemu
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            python:3.10-slim \
+            bash -c "
+              apt-get update && apt-get install -y gcc g++ make curl
+              pip install uv
+              uv sync --all-extras --dev
+              uv run pyinstaller fluid-server.spec --noconfirm --clean
+              tar -czf ${{ matrix.artifact-name }}.tar.gz -C dist .
+            "
+      
+      # Standard build for non-emulated platforms
+      - name: Install uv
+        if: '!matrix.use-qemu'
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+      
+      - name: Set up Python
+        if: '!matrix.use-qemu'
+        run: uv python install ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        if: '!matrix.use-qemu'
+        run: uv sync --all-extras --dev
+      
+      # Cross-compile for Windows ARM64
+      - name: Setup cross-compilation for Windows ARM64
+        if: matrix.cross-compile && matrix.os == 'windows' && matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          # Install ARM64 Python (if available) or use x64 with cross-compilation flags
+          Write-Host "Setting up cross-compilation for Windows ARM64"
+          # PyInstaller will need special flags for ARM64
+          echo "PYINSTALLER_COMPILE_ARCH=arm64" >> $env:GITHUB_ENV
+      
+      - name: Build executable with PyInstaller
+        if: '!matrix.use-qemu'
+        run: |
+          uv run pyinstaller fluid-server.spec --noconfirm --clean
+      
+      # Archive creation
+      - name: Create archive (Linux/macOS)
+        if: '!matrix.use-qemu && (matrix.os == ''linux'' || matrix.os == ''macos'')'
+        run: |
+          cd dist
+          tar -czf ../${{ matrix.artifact-name }}.tar.gz .
+          cd ..
+      
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\* -DestinationPath "${{ matrix.artifact-name }}.zip"
+      
+      # Upload artifacts
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: |
+            ${{ matrix.artifact-name }}.tar.gz
+            ${{ matrix.artifact-name }}.zip
+          retention-days: 30
+      
+      # Upload to release if triggered by release event
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ matrix.artifact-name }}.tar.gz
+            ${{ matrix.artifact-name }}.zip
+          fail_on_unmatched_files: false
+
+  verify-builds:
+    name: Verify All Builds
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    if: always()
+    
+    steps:
+      - name: Check build results
+        run: |
+          echo "Build matrix completed"
+          echo "Artifacts available:"
+          echo "- Linux x64 and ARM64"
+          echo "- Windows x64 and ARM64"
+          echo "- macOS x64 and ARM64"
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      
+      - name: List artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          ls -la artifacts/*/

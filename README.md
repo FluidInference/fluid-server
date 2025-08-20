@@ -1,4 +1,4 @@
-# Fluid Server - On device OpenAI server for your Desktop Apps
+# Fluid Server - AI server for your Desktop Apps
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da.svg)](https://discord.gg/WNsvaCtmDe)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/collections/FluidInference)

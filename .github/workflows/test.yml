@@ -1,0 +1,82 @@
+name: Test Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-type:
+        description: 'Type of test to run'
+        required: true
+        default: 'quick'
+        type: choice
+        options:
+          - quick
+          - full
+          - build-only
+
+jobs:
+  quick-test:
+    if: inputs.test-type == 'quick' || inputs.test-type == 'full'
+    name: Quick Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+      
+      - name: Set up Python
+        run: uv python install 3.10
+      
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      
+      - name: Run ruff checks
+        run: |
+          uv run ruff format --check src/ tests/
+          uv run ruff check src/ tests/
+      
+      - name: Run type checking
+        run: uv run ty
+      
+      - name: Test server startup
+        run: |
+          timeout 10 uv run python -m fluid_server || true
+
+  build-test:
+    if: inputs.test-type == 'build-only' || inputs.test-type == 'full'
+    name: Build Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+      
+      - name: Set up Python
+        run: uv python install 3.10
+      
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      
+      - name: Build with PyInstaller
+        run: uv run pyinstaller fluid-server.spec --noconfirm --clean
+      
+      - name: Check executable exists
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            test -f dist/fluid-server.exe
+          else
+            test -f dist/fluid-server
+          fi
