@@ -83,10 +83,10 @@ def create_app(config: ServerConfig) -> FastAPI:
     )
 
     # Override dependencies for the whole app
+    from .api.health import get_runtime_manager as health_get_runtime_manager
+    from .api.v1.audio import get_runtime_manager as audio_get_runtime_manager
     from .api.v1.chat import get_runtime_manager as chat_get_runtime_manager
     from .api.v1.models import get_runtime_manager as models_get_runtime_manager
-    from .api.v1.audio import get_runtime_manager as audio_get_runtime_manager
-    from .api.health import get_runtime_manager as health_get_runtime_manager
 
     # Dependency to get runtime manager
     def get_runtime_manager() -> RuntimeManager:

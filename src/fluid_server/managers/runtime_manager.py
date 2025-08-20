@@ -35,7 +35,9 @@ class RuntimeManager:
         self.loaded_llm_model: str | None = None
         self.loaded_whisper_model: str | None = None
         self.available_models = ModelDiscovery.find_models(config.model_path)
-        self.downloader = ModelDownloader(config.model_path, config.cache_dir or config.model_path / "cache")
+        self.downloader = ModelDownloader(
+            config.model_path, config.cache_dir or config.model_path / "cache"
+        )
         self._idle_task: asyncio.Task | None = None
         self.download_status: dict[str, str] = {}  # Track download status for models
 
@@ -223,7 +225,9 @@ class RuntimeManager:
         )
         async def _load_with_retry():
             runtime = OpenVINOLLMRuntime(
-                model_path=model_path, cache_dir=self.config.cache_dir or self.config.model_path / "cache", device="GPU"
+                model_path=model_path,
+                cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                device="GPU",
             )
             await runtime.load()
             return runtime
@@ -295,7 +299,9 @@ class RuntimeManager:
         )
         async def _load_with_retry():
             runtime = OpenVINOWhisperRuntime(
-                model_path=model_path, cache_dir=self.config.cache_dir or self.config.model_path / "cache", device="NPU"
+                model_path=model_path,
+                cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                device="NPU",
             )
             await runtime.load()
             return runtime
