@@ -91,7 +91,7 @@ jobs:
       # Standard build for non-emulated platforms
       - name: Install uv
         if: '!matrix.use-qemu'
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
