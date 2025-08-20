@@ -78,25 +78,9 @@ jobs:
         run: uv run ty check
 
   build-and-release:
-    name: Build Release Artifacts (${{ matrix.os }} - ${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
+    name: Build Release Artifacts (Windows ARM64)
+    runs-on: windows-latest
     needs: [auto-format, type-check]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x64
-            artifact-name: fluid-server-linux-x64
-            binary-name: fluid-server
-          - os: windows-latest
-            arch: x64
-            artifact-name: fluid-server-windows-x64
-            binary-name: fluid-server.exe
-          - os: macos-latest
-            arch: x64
-            artifact-name: fluid-server-macos-x64
-            binary-name: fluid-server
     
     steps:
       - uses: actions/checkout@v5
@@ -115,30 +99,22 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
       
-      - name: Build executable with PyInstaller
-        run: |
-          uv run pyinstaller fluid-server.spec --noconfirm --clean
-      
-      - name: Create release archive (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          cd dist
-          tar -czf ../${{ matrix.artifact-name }}.tar.gz *
-          cd ..
-      
-      - name: Create release archive (Windows)
-        if: runner.os == 'Windows'
+      - name: Build executable with PyInstaller (Windows ARM64)
         shell: pwsh
         run: |
-          Compress-Archive -Path dist\* -DestinationPath ${{ matrix.artifact-name }}.zip
+          # Use the build.ps1 script which already has proper ARM64 configuration
+          .\scripts\build.ps1
+      
+      - name: Create release archive (Windows ARM64)
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\* -DestinationPath fluid-server-windows-arm64.zip
       
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact-name }}
-          path: |
-            ${{ matrix.artifact-name }}.tar.gz
-            ${{ matrix.artifact-name }}.zip
+          name: fluid-server-windows-arm64
+          path: fluid-server-windows-arm64.zip
           retention-days: 30
       
       - name: Get version from pyproject.toml
@@ -154,19 +130,19 @@ jobs:
         with:
           draft: true
           prerelease: false
-          files: |
-            ${{ matrix.artifact-name }}.tar.gz
-            ${{ matrix.artifact-name }}.zip
+          files: fluid-server-windows-arm64.zip
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
           body: |
             ## Changes in ${{ github.ref_name }}
             
             ### Downloads
-            - Linux x64: `${{ matrix.artifact-name }}.tar.gz`
-            - Windows x64: `${{ matrix.artifact-name }}.zip`
-            - macOS x64: `${{ matrix.artifact-name }}.tar.gz`
+            - Windows ARM64 (Qualcomm): `fluid-server-windows-arm64.zip`
             
             ### Installation
-            Extract the archive and run the `fluid-server` executable.
+            Extract the zip archive and run the `fluid-server.exe` executable.
+            
+            ### System Requirements
+            - Windows 11 on ARM64 (Qualcomm processors)
+            - .NET Framework may be required for some dependencies
           generate_release_notes: true

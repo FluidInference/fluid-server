@@ -1,5 +1,5 @@
-# Fluid Server Build Script for Windows
-# Builds a standalone .exe using PyInstaller
+# Fluid Server Build Script for Windows ARM64 (Qualcomm)
+# Builds a standalone .exe using PyInstaller targeting ARM64 architecture
 
 Write-Host "=== Fluid Server PyInstaller Build ===" -ForegroundColor Cyan
 
@@ -29,44 +29,8 @@ uv pip install pyinstaller
 # Create the executable
 Write-Host "`nBuilding executable with PyInstaller..." -ForegroundColor Yellow
 
-# Run PyInstaller with all necessary options using module syntax
-uv run pyinstaller --onefile `
-    --name fluid-server `
-    --noconsole `
-    --hidden-import=openvino `
-    --hidden-import=openvino_genai `
-    --hidden-import=openvino_tokenizers `
-    --hidden-import=openvino.runtime `
-    --hidden-import=openvino.properties `
-    --hidden-import=uvicorn.logging `
-    --hidden-import=uvicorn.loops `
-    --hidden-import=uvicorn.loops.auto `
-    --hidden-import=uvicorn.protocols `
-    --hidden-import=uvicorn.protocols.http `
-    --hidden-import=uvicorn.protocols.http.auto `
-    --hidden-import=uvicorn.protocols.websockets `
-    --hidden-import=uvicorn.protocols.websockets.auto `
-    --hidden-import=uvicorn.lifespan `
-    --hidden-import=uvicorn.lifespan.on `
-    --hidden-import=uvicorn.lifespan.off `
-    --hidden-import=fluid_server.app `
-    --hidden-import=librosa `
-    --hidden-import=scipy `
-    --hidden-import=scipy.signal `
-    --hidden-import=scipy.stats `
-    --hidden-import=scipy.stats._distn_infrastructure `
-    --hidden-import=scipy.stats._stats `
-    --hidden-import=scipy.stats.distributions `
-    --hidden-import=scipy.io `
-    --hidden-import=scipy.fft `
-    --hidden-import=numpy `
-    --collect-all=openvino `
-    --collect-all=openvino_genai `
-    --collect-all=openvino_tokenizers `
-    --collect-all=librosa `
-    --collect-all=scipy `
-    --log-level=INFO `
-    (Get-Item "src\fluid_server\__main__.py").FullName
+# Run PyInstaller using the spec file which is optimized for ARM64
+uv run pyinstaller fluid-server.spec --noconfirm --clean --log-level=INFO
 
 # Check if build was successful
 if (Test-Path "dist/fluid-server.exe") {

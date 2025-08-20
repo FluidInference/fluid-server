@@ -39,36 +39,11 @@ jobs:
         run: uv run ty check
 
   test-build:
-    name: Test Build (${{ matrix.os }} - ${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x64
-            python-arch: x64
-          - os: ubuntu-latest
-            arch: arm64
-            python-arch: aarch64
-          - os: windows-latest
-            arch: x64
-            python-arch: x64
-          - os: macos-latest
-            arch: x64
-            python-arch: x64
-          - os: macos-latest
-            arch: arm64
-            python-arch: aarch64
+    name: Test Build (Windows ARM64)
+    runs-on: windows-latest
     
     steps:
       - uses: actions/checkout@v5
-      
-      - name: Set up QEMU (for ARM64 on Linux)
-        if: matrix.arch == 'arm64' && runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
       
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -85,41 +60,17 @@ jobs:
       - name: Verify imports
         run: uv run python -c "from fluid_server import app; print('Import successful')"
       
-      - name: Run server health check
-        run: |
-          uv run python -m fluid_server &
-          SERVER_PID=$!
-          sleep 5
-          curl -f http://localhost:8080/health || exit 1
-          kill $SERVER_PID || true
-        shell: bash
-        if: runner.os != 'Windows'
-      
-      - name: Run server health check (Windows)
+      - name: Run server health check (Windows ARM64)
         run: |
           Start-Process -FilePath "uv" -ArgumentList "run", "python", "-m", "fluid_server" -PassThru -WindowStyle Hidden | Out-Null
           Start-Sleep -Seconds 5
           Invoke-WebRequest -Uri http://localhost:8080/health -UseBasicParsing
           Get-Process python | Stop-Process -Force
         shell: pwsh
-        if: runner.os == 'Windows'
 
   build-executable:
-    name: Build Executable (${{ matrix.os }} - ${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x64
-            artifact-name: fluid-server-linux-x64
-          - os: windows-latest
-            arch: x64
-            artifact-name: fluid-server-windows-x64
-          - os: macos-latest
-            arch: x64
-            artifact-name: fluid-server-macos-x64
+    name: Build Executable (Windows ARM64)
+    runs-on: windows-latest
     
     steps:
       - uses: actions/checkout@v5
@@ -136,22 +87,13 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
       
-      - name: Build executable with PyInstaller
+      - name: Build executable with PyInstaller (Windows ARM64)
+        shell: pwsh
         run: |
-          uv run pyinstaller fluid-server.spec --noconfirm --clean
+          # Use the build.ps1 script which has proper ARM64 configuration
+          .\scripts\build.ps1
       
-      - name: Test executable (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          ./dist/fluid-server --help
-          ./dist/fluid-server &
-          SERVER_PID=$!
-          sleep 5
-          curl -f http://localhost:8080/health || exit 1
-          kill $SERVER_PID || true
-      
-      - name: Test executable (Windows)
-        if: runner.os == 'Windows'
+      - name: Test executable (Windows ARM64)
         shell: pwsh
         run: |
           .\dist\fluid-server.exe --help
@@ -163,6 +105,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact-name }}
+          name: fluid-server-windows-arm64
           path: dist/
           retention-days: 7
