@@ -91,7 +91,7 @@ class ModelDiscovery:
     @staticmethod
     def _validate_whisper_model(path: Path) -> bool:
         """
-        Check if directory contains valid Whisper model
+        Check if directory contains valid Whisper model (OpenVINO or QNN)
 
         Args:
             path: Path to model directory
@@ -100,17 +100,47 @@ class ModelDiscovery:
             True if valid Whisper model found
         """
         # Check for OpenVINO encoder/decoder models
-        has_encoder = (path / "openvino_encoder_model.xml").exists() or (
+        has_ov_encoder = (path / "openvino_encoder_model.xml").exists() or (
             path / "encoder_model.xml"
         ).exists()
-        has_decoder = (path / "openvino_decoder_model.xml").exists() or (
+        has_ov_decoder = (path / "openvino_decoder_model.xml").exists() or (
             path / "decoder_model.xml"
         ).exists()
 
-        # Also check for single model file (some Whisper variants)
-        has_single = (path / "openvino_model.xml").exists()
+        # Also check for single OpenVINO model file (some Whisper variants)
+        has_ov_single = (path / "openvino_model.xml").exists()
 
-        return (has_encoder and has_decoder) or has_single
+        # Check for QNN models (ONNX format with device-specific structure)
+        has_qnn_model = ModelDiscovery._validate_qnn_whisper_model(path)
+
+        return (has_ov_encoder and has_ov_decoder) or has_ov_single or has_qnn_model
+
+    @staticmethod
+    def _validate_qnn_whisper_model(path: Path) -> bool:
+        """
+        Check if directory contains valid QNN Whisper model
+
+        Args:
+            path: Path to model directory
+
+        Returns:
+            True if valid QNN Whisper model found
+        """
+        # Check for device-specific QNN models (e.g., snapdragon-x-elite)
+        device_variants = ["snapdragon-x-elite"]  # Can be expanded in the future
+        
+        for device in device_variants:
+            device_path = path / device
+            if device_path.exists() and device_path.is_dir():
+                # Check for encoder and decoder ONNX models
+                encoder_path = device_path / "encoder" / "model.onnx"
+                decoder_path = device_path / "decoder" / "model.onnx"
+                
+                if encoder_path.exists() and decoder_path.exists():
+                    logger.debug(f"Found QNN model for device: {device}")
+                    return True
+        
+        return False
 
     @staticmethod
     def _validate_embedding_model(path: Path) -> bool:
@@ -158,3 +188,21 @@ class ModelDiscovery:
             logger.debug(f"Model path does not exist: {model_path}")
 
         return None
+
+    @staticmethod
+    def get_whisper_runtime_type(model_path: Path) -> str:
+        """
+        Determine the appropriate runtime type for a Whisper model
+
+        Args:
+            model_path: Path to the Whisper model directory
+
+        Returns:
+            Runtime type: "openvino" or "qnn"
+        """
+        # Check for QNN models first (more specific structure)
+        if ModelDiscovery._validate_qnn_whisper_model(model_path):
+            return "qnn"
+        
+        # Default to OpenVINO for other valid Whisper models
+        return "openvino"

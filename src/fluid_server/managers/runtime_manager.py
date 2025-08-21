@@ -11,6 +11,7 @@ from ..config import ServerConfig
 from ..runtimes.base import BaseRuntime
 from ..runtimes.openvino_llm import OpenVINOLLMRuntime
 from ..runtimes.openvino_whisper import OpenVINOWhisperRuntime
+from ..runtimes.qnn_whisper import QNNWhisperRuntime
 from ..utils.model_discovery import ModelDiscovery
 from ..utils.model_downloader import ModelDownloader
 from ..utils.retry import retry_async
@@ -250,7 +251,7 @@ class RuntimeManager:
             logger.info("Server will continue without this LLM model")
             return None  # Return None instead of crashing
 
-    async def load_whisper(self, model_name: str | None = None) -> OpenVINOWhisperRuntime | None:
+    async def load_whisper(self, model_name: str | None = None) -> BaseRuntime | None:
         """Load a Whisper model (keeps both LLM and Whisper in memory)"""
         # Use provided model name or fall back to configured default
         model_to_load = model_name or self.config.whisper_model
@@ -285,8 +286,9 @@ class RuntimeManager:
             logger.error(f"Whisper model '{model_to_load}' not found")
             return None  # Return None instead of raising exception
 
-        # Create and load runtime with error recovery and retry logic
-        logger.info(f"Loading Whisper model '{model_to_load}' on NPU")
+        # Determine runtime type based on model format
+        runtime_type = ModelDiscovery.get_whisper_runtime_type(model_path)
+        logger.info(f"Loading Whisper model '{model_to_load}' using {runtime_type.upper()} runtime")
 
         @retry_async(
             max_attempts=3,
@@ -298,11 +300,18 @@ class RuntimeManager:
             ),
         )
         async def _load_with_retry():
-            runtime = OpenVINOWhisperRuntime(
-                model_path=model_path,
-                cache_dir=self.config.cache_dir or self.config.model_path / "cache",
-                device="NPU",
-            )
+            if runtime_type == "qnn":
+                runtime = QNNWhisperRuntime(
+                    model_path=model_path,
+                    cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                    device="NPU",
+                )
+            else:  # openvino
+                runtime = OpenVINOWhisperRuntime(
+                    model_path=model_path,
+                    cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                    device="NPU",
+                )
             await runtime.load()
             return runtime
 
@@ -340,7 +349,7 @@ class RuntimeManager:
 
         return self.llm_runtime
 
-    async def get_whisper(self, model_name: str | None = None) -> OpenVINOWhisperRuntime:
+    async def get_whisper(self, model_name: str | None = None) -> BaseRuntime:
         """Get Whisper runtime, loading if necessary"""
         model_to_get = model_name or self.config.whisper_model
 
