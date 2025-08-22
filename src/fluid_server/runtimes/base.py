@@ -39,6 +39,12 @@ class BaseRuntime(ABC):
         """Get runtime and model information"""
         pass
 
+    async def transcribe(
+        self, audio_data: bytes, language: str | None = None, return_timestamps: bool = True
+    ) -> dict[str, Any]:
+        """Transcribe audio to text (only implemented by Whisper runtimes)"""
+        raise NotImplementedError("Transcription not supported by this runtime")
+
     @property
     def model_name(self) -> str:
         """Get the model name from path"""

@@ -19,6 +19,8 @@ dependencies = [
     "librosa>=0.10.0",
     "pyinstaller>=6.15.0",
     "soundfile>=0.13.1",
+    "onnxruntime-qnn>=1.19.0",
+    "openai-whisper>=20231117",
 ]
 
 [tool.uv]

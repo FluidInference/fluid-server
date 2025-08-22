@@ -20,6 +20,7 @@ DEFAULT_MODEL_REPOS = {
     "whisper": {
         "whisper-tiny": "FluidInference/whisper-tiny-int4-ov-npu",
         "whisper-large-v3-turbo-fp16-ov-npu": "FluidInference/whisper-large-v3-turbo-fp16-ov-npu",
+        "whisper-large-v3-turbo-qnn": "FluidInference/whisper-large-v3-turbo-qnn",
     },
 }
 
