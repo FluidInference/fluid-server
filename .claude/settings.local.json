@@ -64,6 +64,11 @@
       "Bash(PYTHONPATH=src uv run python -c \"\nfrom fluid_server.runtimes.qnn_whisper import QNNWhisperRuntime\nfrom fluid_server.utils.model_discovery import ModelDiscovery\nprint(''QNN runtime import successful'')\nprint(''ModelDiscovery with QNN support successful'')\nprint(''QNN integration is ready!'')\n\")",
       "Bash(PYTHONPATH=src uv run python -c \"\nfrom pathlib import Path\nfrom fluid_server.utils.model_discovery import ModelDiscovery\n\n# Test QNN model detection\ntest_path = Path(''test_models/whisper/whisper-large-v3-turbo-qnn'')\ntest_path.mkdir(parents=True, exist_ok=True)\n\n# Create fake QNN model structure\n(test_path / ''snapdragon-x-elite/encoder'').mkdir(parents=True, exist_ok=True)\n(test_path / ''snapdragon-x-elite/decoder'').mkdir(parents=True, exist_ok=True)\n(test_path / ''snapdragon-x-elite/encoder/model.onnx'').touch()\n(test_path / ''snapdragon-x-elite/decoder/model.onnx'').touch()\n\n# Test detection\nis_valid = ModelDiscovery._validate_qnn_whisper_model(test_path)\nruntime_type = ModelDiscovery.get_whisper_runtime_type(test_path)\n\nprint(f''QNN model detection: {is_valid}'')\nprint(f''Runtime type: {runtime_type}'')\n\n# Cleanup\nimport shutil\nshutil.rmtree(''test_models'', ignore_errors=True)\n\")",
       "Bash(\"./dist/fluid-server.exe\" --help)"
+      "Bash(\".venv/Scripts/python.exe\" -m PyInstaller --onefile --name fluid-server --noconsole \"src\\fluid_server\\__main__.py\")",
+      "Bash(scriptskill_server.bat)",
+      "mcp__deepwiki__read_wiki_structure",
+      "mcp__deepwiki__read_wiki_contents",
+      "mcp__deepwiki__ask_question"
     ],
     "deny": [],
     "ask": [],
