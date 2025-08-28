@@ -1,4 +1,6 @@
-# Fluid Server - AI server for your Desktop Apps
+# Fluid Server - AI server integrated into your Windows Apps
+
+** THIS IS STILL UNDER DEVELOPMENT **
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da.svg)](https://discord.gg/WNsvaCtmDe)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/collections/FluidInference)
@@ -8,6 +10,8 @@ The goal is to bring a portable, packaged OpenAI-like server for any desktop app
 The goal is to eventually provide all the necessary features like LLM, Transcription, Text to Speech, Speaker diarization, VAD, etc...  
 
 Designed to bundle into a single binary for easy integration into existing desktop applications.
+
+
 
 **Currently Supported NPU Runtimes:**
 - **Intel NPU** via OpenVINO backend
