@@ -3,7 +3,9 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da.svg)](https://discord.gg/WNsvaCtmDe)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/collections/FluidInference)
 
-The goal is to bring a portable, packaged OpenAI-like server for any desktop application to integrate with, providing the most optimal model configurations for each chipset. We prioritize AI accelerators where possible; where they're not available, the client will prefer GPU-based execution.
+The goal is to bring a portable, packaged OpenAI-like server for any desktop application to integrate with, providing the most optimal model configurations for each chipset. We prioritize AI accelerators where possible.
+
+The goal is to eventually provide all the necessary features like LLM, Transcription, Text to Speech, Speaker diarization, VAD, etc...  
 
 Designed to bundle into a single binary for easy integration into existing desktop applications.
 
@@ -12,6 +14,8 @@ Designed to bundle into a single binary for easy integration into existing deskt
 - **Qualcomm NPU** via QNN (Snapdragon X Elite)
 
 The server automatically detects your model format and selects the appropriate runtime for optimal performance. For Mac-related solutions, please see [FluidAudio](https://github.com/FluidInference/FluidAudio)
+
+We built this because of the lack of support for Windows because of the fragmentation in support across Windows desktops and there doesn't seem to be a standard yet for running inference locally across all the chipsets, especially on AI accelerators. 
 
 ## NPU Support
 
@@ -27,11 +31,6 @@ Fluid Server supports multiple NPU runtimes for optimal performance on different
 - **Location**: `models/whisper/whisper-large-v3-turbo-qnn/snapdragon-x-elite/`
 - **Performance**: 16x+ real-time transcription on Snapdragon X Elite
 - **Hardware**: Snapdragon X Elite devices with HTP (Hexagon Tensor Processor)
-
-### Automatic Runtime Selection
-The server automatically chooses the correct runtime based on your model structure:
-- **OpenVINO models** → Uses OpenVINO runtime for Intel NPU/GPU
-- **QNN models** → Uses QNN runtime for Qualcomm NPU
 
 ## Quick Start
 
