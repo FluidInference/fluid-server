@@ -75,15 +75,16 @@ class OpenVINOWhisperRuntime(BaseRuntime):
             os.environ["OV_CACHE_DIR"] = str(self.model_cache_dir)
 
             try:
-                # Import openvino_genai
+                # Lazy import - only import when actually loading
                 import openvino_genai as ov_genai
+                self.ov_genai = ov_genai
 
                 logger.info(f"Creating WhisperPipeline (Device: {self.device})")
                 start_time = time.time()
 
                 try:
                     # Try primary device (NPU)
-                    self.pipeline = ov_genai.WhisperPipeline(
+                    self.pipeline = self.ov_genai.WhisperPipeline(
                         models_path=self.model_path,
                         device=self.device,
                         CACHE_DIR=str(self.model_cache_dir),
@@ -96,7 +97,7 @@ class OpenVINOWhisperRuntime(BaseRuntime):
                     if self.device.upper() != "CPU":
                         logger.info("Falling back to CPU")
                         start_time = time.time()
-                        self.pipeline = ov_genai.WhisperPipeline(
+                        self.pipeline = self.ov_genai.WhisperPipeline(
                             models_path=self.model_path,
                             device="CPU",
                             CACHE_DIR=str(self.model_cache_dir),

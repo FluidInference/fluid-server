@@ -44,7 +44,9 @@ class LlamaCppRuntime(BaseRuntime):
             return
 
         try:
+            # Lazy import - only import when actually loading
             from llama_cpp import Llama
+            self.Llama = Llama
 
             # Find the GGUF file in the model directory
             gguf_files = list(self.model_path.glob("*.gguf"))
@@ -62,7 +64,7 @@ class LlamaCppRuntime(BaseRuntime):
             # Set n_gpu_layers to offload layers to GPU via Vulkan
             n_gpu_layers = -1 if self.device == "GPU" else 0
 
-            self.llama = Llama(
+            self.llama = self.Llama(
                 model_path=str(gguf_file),
                 n_ctx=4096,  # Context length
                 n_batch=512,  # Batch size

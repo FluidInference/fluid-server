@@ -42,8 +42,12 @@ class OpenVINOLLMRuntime(BaseRuntime):
             return
 
         try:
+            # Lazy imports - only import when actually loading
             import openvino as ov
             import openvino_genai as ov_genai
+            
+            self.ov = ov
+            self.ov_genai = ov_genai
 
             # Set OpenVINO logging level
             try:
@@ -72,18 +76,18 @@ class OpenVINOLLMRuntime(BaseRuntime):
                 logger.info("No cached model found, will compile on first run")
 
             # Create scheduler config for memory optimization
-            scheduler_config = ov_genai.SchedulerConfig()
+            scheduler_config = self.ov_genai.SchedulerConfig()
             scheduler_config.enable_prefix_caching = False
             scheduler_config.num_kv_blocks = 1024
             scheduler_config.cache_size = 5  # GB
             scheduler_config.use_cache_eviction = True
 
             # Configure cache eviction
-            cache_eviction_config = ov_genai.CacheEvictionConfig(
+            cache_eviction_config = self.ov_genai.CacheEvictionConfig(
                 start_size=256,
                 recent_size=1024,
                 max_cache_size=4096,
-                aggregation_mode=ov_genai.AggregationMode.NORM_SUM,
+                aggregation_mode=self.ov_genai.AggregationMode.NORM_SUM,
             )
             scheduler_config.cache_eviction_config = cache_eviction_config
 
@@ -94,7 +98,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
                 "KV_CACHE_PRECISION": "u8",
             }
 
-            self.pipeline = ov_genai.LLMPipeline(self.model_path, self.device, **config_dict)
+            self.pipeline = self.ov_genai.LLMPipeline(self.model_path, self.device, **config_dict)
 
             load_time = time.time() - start_time
             logger.info(f"LLM loaded successfully in {load_time:.1f}s")
@@ -102,7 +106,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
             # Warm up if no cache
             if not has_cache:
                 logger.info("Running warm-up generation...")
-                warmup_config = ov_genai.GenerationConfig()
+                warmup_config = self.ov_genai.GenerationConfig()
                 warmup_config.max_new_tokens = 1
                 self.pipeline.generate("Hello", warmup_config)
                 logger.info("Warm-up complete, cache created")
@@ -124,9 +128,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
             self.last_used = time.time()
 
             try:
-                import openvino_genai as ov_genai
-
-                config = ov_genai.GenerationConfig()
+                config = self.ov_genai.GenerationConfig()
                 config.max_new_tokens = max_tokens
                 config.temperature = temperature
                 config.top_p = top_p
@@ -162,9 +164,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
         self, prompt: str, max_tokens: int, temperature: float, top_p: float
     ) -> list[str]:
         """Synchronous streaming generation for use in executor"""
-        import openvino_genai as ov_genai
-
-        config = ov_genai.GenerationConfig()
+        config = self.ov_genai.GenerationConfig()
         config.max_new_tokens = max_tokens
         config.temperature = temperature
         config.top_p = top_p

@@ -61,69 +61,8 @@ uv add --dev pyinstaller
 # Create the executable
 Write-Host "`nBuilding executable with PyInstaller for $archName..." -ForegroundColor Yellow
 
-<<<<<<< HEAD
 # Run PyInstaller using the spec file (builds for current architecture)
 uv run pyinstaller fluid-server.spec --noconfirm --clean --log-level=INFO
-=======
-# Check if source file exists
-if (-not (Test-Path "src\fluid_server\__main__.py")) {
-    Write-Host "Error: Source file not found: src\fluid_server\__main__.py" -ForegroundColor Red
-    exit 1
-}
-
-# Run PyInstaller directly from virtual environment
-Write-Host "Running PyInstaller with comprehensive packaging options..." -ForegroundColor Green
-$pyinstallerResult = & ".venv\Scripts\python.exe" -m PyInstaller --onefile `
-    --name fluid-server `
-    --noconsole `
-    --add-data "src\fluid_server;fluid_server" `
-    --hidden-import=openvino `
-    --hidden-import=openvino_genai `
-    --hidden-import=openvino_tokenizers `
-    --hidden-import=openvino.runtime `
-    --hidden-import=openvino.properties `
-    --hidden-import=uvicorn.logging `
-    --hidden-import=uvicorn.loops `
-    --hidden-import=uvicorn.loops.auto `
-    --hidden-import=uvicorn.protocols `
-    --hidden-import=uvicorn.protocols.http `
-    --hidden-import=uvicorn.protocols.http.auto `
-    --hidden-import=uvicorn.protocols.websockets `
-    --hidden-import=uvicorn.protocols.websockets.auto `
-    --hidden-import=uvicorn.lifespan `
-    --hidden-import=uvicorn.lifespan.on `
-    --hidden-import=uvicorn.lifespan.off `
-    --hidden-import=fluid_server.app `
-    --hidden-import=fluid_server.managers `
-    --hidden-import=fluid_server.runtimes `
-    --hidden-import=fluid_server.api `
-    --hidden-import=fluid_server.models `
-    --hidden-import=fluid_server.utils `
-    --hidden-import=librosa `
-    --hidden-import=scipy `
-    --hidden-import=scipy.signal `
-    --hidden-import=scipy.stats `
-    --hidden-import=scipy.stats._distn_infrastructure `
-    --hidden-import=scipy.stats._stats `
-    --hidden-import=scipy.stats.distributions `
-    --hidden-import=scipy.io `
-    --hidden-import=scipy.fft `
-    --hidden-import=numpy `
-    --hidden-import=soundfile `
-    --hidden-import=_soundfile_data `
-    --hidden-import=multiprocessing `
-    --hidden-import=asyncio `
-    --collect-all=openvino `
-    --collect-all=openvino_genai `
-    --collect-all=openvino_tokenizers `
-    --collect-all=librosa `
-    --collect-all=scipy `
-    --collect-all=soundfile `
-    --log-level=WARN `
-    --distpath=dist `
-    --workpath=build `
-    --clean `
-    "src\fluid_server\__main__.py"
 
 # Check PyInstaller exit code
 if ($LASTEXITCODE -ne 0) {
@@ -133,19 +72,14 @@ if ($LASTEXITCODE -ne 0) {
 
 # Verify build results
 Write-Host "`nVerifying build results..." -ForegroundColor Yellow
->>>>>>> ec050bf (Kill server)
 
 if (Test-Path "dist/fluid-server.exe") {
-<<<<<<< HEAD
-    $size = (Get-Item "dist/fluid-server.exe").Length / 1MB
+    $exe = Get-Item "dist/fluid-server.exe"
+    $size = $exe.Length / 1MB
     Write-Host "`nBuild successful!" -ForegroundColor Green
     Write-Host "Architecture: $archName" -ForegroundColor Cyan
     Write-Host "Executable: dist/fluid-server.exe" -ForegroundColor Cyan
     Write-Host ("Size: {0:N2} MB" -f $size) -ForegroundColor Cyan
-=======
-    $exe = Get-Item "dist/fluid-server.exe"
-    $size = $exe.Length / 1MB
->>>>>>> ec050bf (Kill server)
     
     Write-Host "`nBuild successful!" -ForegroundColor Green
     Write-Host "Executable: $($exe.FullName)" -ForegroundColor Cyan

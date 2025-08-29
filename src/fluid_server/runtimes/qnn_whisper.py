@@ -11,10 +11,9 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import torch
-import whisper
 
 from .base import BaseRuntime
+from ..utils.platform_utils import get_architecture, is_runtime_available
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +151,11 @@ class QNNWhisperRuntime(BaseRuntime):
         self.last_used = time.time()
         self._load_lock = asyncio.Lock()
         
+        # Check architecture compatibility
+        arch = get_architecture()
+        if not is_runtime_available("qnn", arch):
+            logger.warning(f"QNN runtime not supported on {arch} architecture, will fail at load time")
+        
         # QNN model configuration
         self.num_decoder_blocks = 4    # Large-v3-turbo reduced blocks
         self.num_decoder_heads = 20    # decoder_attention_heads
@@ -167,8 +171,29 @@ class QNNWhisperRuntime(BaseRuntime):
                 self.last_used = time.time()
                 return
             
+            # Check architecture compatibility
+            arch = get_architecture()
+            if not is_runtime_available("qnn", arch):
+                raise RuntimeError(
+                    f"QNN runtime requires ARM64 architecture, but running on {arch}. "
+                    "QNN is only supported on Windows ARM64 devices with Snapdragon X Elite."
+                )
+            
+            # Lazy import of dependencies
+            try:
+                import torch
+                import whisper
+                self.torch = torch
+                self.whisper = whisper
+            except ImportError as e:
+                raise RuntimeError(
+                    "QNN runtime requires PyTorch and Whisper. "
+                    "Install with: pip install torch whisper"
+                ) from e
+            
             logger.info(f"Loading QNN Whisper '{self.model_name}' from {self.model_path}")
             logger.info(f"Device variant: {self.device_variant}")
+            logger.info(f"Architecture: {arch}")
             
             # Validate model files exist
             if not self._validate_model_files():
@@ -429,7 +454,7 @@ class QNNWhisperRuntime(BaseRuntime):
     def _decode_tokens(self, kv_cache_cross: tuple) -> list[int]:
         """Decode tokens using QNN decoder"""
         # Initialize with start-of-transcript token
-        output_ids = torch.tensor([[self.tokenizer.sot]], dtype=torch.int32)
+        output_ids = self.torch.tensor([[self.tokenizer.sot]], dtype=self.torch.int32)
         decoded_tokens = []
         
         # Initialize caches
@@ -439,13 +464,13 @@ class QNNWhisperRuntime(BaseRuntime):
         num_decoder_blocks = self.num_decoder_blocks
         
         # Initialize self attention caches
-        k_cache_self = torch.zeros((
+        k_cache_self = self.torch.zeros((
             num_decoder_heads, 1, attention_dim // num_decoder_heads, sample_len - 1,
-        ), dtype=torch.float16)
+        ), dtype=self.torch.float16)
         
-        v_cache_self = torch.zeros((
+        v_cache_self = self.torch.zeros((
             num_decoder_heads, 1, sample_len - 1, attention_dim // num_decoder_heads,
-        ), dtype=torch.float16)
+        ), dtype=self.torch.float16)
         
         kv_cache_self = tuple(
             (k_cache_self, v_cache_self) for _ in range(num_decoder_blocks)
@@ -453,15 +478,15 @@ class QNNWhisperRuntime(BaseRuntime):
         
         # Initialize attention mask
         mask_neg = -100.0
-        attention_mask = torch.full(
-            (1, 1, 1, sample_len), mask_neg, dtype=torch.float16,
+        attention_mask = self.torch.full(
+            (1, 1, 1, sample_len), mask_neg, dtype=self.torch.float16,
         )
         
         for n in range(sample_len - 1):
             try:
                 # Get current token
                 input_ids = output_ids[:, n : n + 1]
-                position_ids = torch.tensor([n], dtype=torch.int32)
+                position_ids = self.torch.tensor([n], dtype=self.torch.int32)
                 
                 # Update attention mask
                 attention_mask[:, :, :, sample_len - n - 1] = 0.0
@@ -499,8 +524,8 @@ class QNNWhisperRuntime(BaseRuntime):
                 
                 # Reconstruct kv_cache_self from outputs
                 kv_cache_self = tuple(
-                    (torch.from_numpy(decoder_output[1 + i*2]), 
-                     torch.from_numpy(decoder_output[1 + i*2 + 1]))
+                    (self.torch.from_numpy(decoder_output[1 + i*2]), 
+                     self.torch.from_numpy(decoder_output[1 + i*2 + 1]))
                     for i in range(num_decoder_blocks)
                 )
                 
@@ -509,8 +534,8 @@ class QNNWhisperRuntime(BaseRuntime):
                     logger.error("Empty logits tensor received")
                     break
                 
-                logits_tensor = torch.from_numpy(logits).squeeze()
-                output_id = torch.argmax(logits_tensor, dim=-1)
+                logits_tensor = self.torch.from_numpy(logits).squeeze()
+                output_id = self.torch.argmax(logits_tensor, dim=-1)
                 
                 if output_id == self.tokenizer.eot:
                     break
@@ -521,7 +546,7 @@ class QNNWhisperRuntime(BaseRuntime):
                 elif output_id.dim() == 1:
                     output_id = output_id.unsqueeze(0)
                 
-                output_ids = torch.cat((output_ids, output_id), -1)
+                output_ids = self.torch.cat((output_ids, output_id), -1)
                 decoded_tokens.append(int(output_id.item()))
                 
             except Exception as e:

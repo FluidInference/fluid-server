@@ -225,8 +225,13 @@ class ModelDiscovery:
         Returns:
             Runtime type: "openvino" or "qnn"
         """
-        # Check for QNN models first (more specific structure)
-        if ModelDiscovery._validate_qnn_whisper_model(model_path):
+        # Import platform utilities
+        from .platform_utils import get_architecture, is_runtime_available
+        
+        # Check for QNN models first (more specific structure) and only on ARM64
+        if (get_architecture() == "arm64" and 
+            is_runtime_available("qnn") and 
+            ModelDiscovery._validate_qnn_whisper_model(model_path)):
             return "qnn"
         
         # Default to OpenVINO for other valid Whisper models

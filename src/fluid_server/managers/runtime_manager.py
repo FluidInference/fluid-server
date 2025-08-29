@@ -12,7 +12,21 @@ from ..runtimes.base import BaseRuntime
 from ..runtimes.llamacpp_llm import LlamaCppRuntime
 from ..runtimes.openvino_llm import OpenVINOLLMRuntime
 from ..runtimes.openvino_whisper import OpenVINOWhisperRuntime
-from ..runtimes.qnn_whisper import QNNWhisperRuntime
+
+# Import QNN runtime only on ARM64 architecture to avoid PyInstaller issues
+from ..utils.platform_utils import get_architecture, is_runtime_available
+
+# Only import QNN runtime on ARM64 devices
+if get_architecture() == "arm64" and is_runtime_available("qnn"):
+    try:
+        from ..runtimes.qnn_whisper import QNNWhisperRuntime
+        QNN_AVAILABLE = True
+    except ImportError:
+        QNNWhisperRuntime = None
+        QNN_AVAILABLE = False
+else:
+    QNNWhisperRuntime = None
+    QNN_AVAILABLE = False
 from ..utils.model_discovery import ModelDiscovery
 from ..utils.model_downloader import ModelDownloader
 from ..utils.retry import retry_async
@@ -323,11 +337,19 @@ class RuntimeManager:
         )
         async def _load_with_retry():
             if runtime_type == "qnn":
-                runtime = QNNWhisperRuntime(
-                    model_path=model_path,
-                    cache_dir=self.config.cache_dir or self.config.model_path / "cache",
-                    device="NPU",
-                )
+                if not QNN_AVAILABLE or QNNWhisperRuntime is None:
+                    logger.warning("QNN runtime requested but not available, falling back to OpenVINO")
+                    runtime = OpenVINOWhisperRuntime(
+                        model_path=model_path,
+                        cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                        device="NPU",
+                    )
+                else:
+                    runtime = QNNWhisperRuntime(
+                        model_path=model_path,
+                        cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                        device="NPU",
+                    )
             else:  # openvino
                 runtime = OpenVINOWhisperRuntime(
                     model_path=model_path,
