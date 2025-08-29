@@ -65,7 +65,7 @@ class ModelDiscovery:
     @staticmethod
     def _validate_llm_model(path: Path) -> bool:
         """
-        Check if directory contains valid LLM model
+        Check if directory contains valid LLM model (OpenVINO or GGUF)
 
         Args:
             path: Path to model directory
@@ -73,6 +73,12 @@ class ModelDiscovery:
         Returns:
             True if valid LLM model found
         """
+        # Check for GGUF model files
+        gguf_files = list(path.glob("*.gguf"))
+        if gguf_files:
+            logger.debug(f"Found GGUF model: {gguf_files[0].name}")
+            return True
+
         # Check for OpenVINO model files
         has_ov = (path / "openvino_model.xml").exists() and (path / "openvino_model.bin").exists()
 
@@ -188,6 +194,25 @@ class ModelDiscovery:
             logger.debug(f"Model path does not exist: {model_path}")
 
         return None
+
+    @staticmethod
+    def get_llm_runtime_type(model_path: Path) -> str:
+        """
+        Determine the appropriate runtime type for an LLM model
+
+        Args:
+            model_path: Path to the LLM model directory
+
+        Returns:
+            Runtime type: "openvino" or "llamacpp"
+        """
+        # Check for GGUF files first
+        gguf_files = list(model_path.glob("*.gguf"))
+        if gguf_files:
+            return "llamacpp"
+        
+        # Default to OpenVINO for other valid LLM models
+        return "openvino"
 
     @staticmethod
     def get_whisper_runtime_type(model_path: Path) -> str:

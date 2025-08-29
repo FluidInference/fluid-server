@@ -9,6 +9,7 @@ from typing import Any
 
 from ..config import ServerConfig
 from ..runtimes.base import BaseRuntime
+from ..runtimes.llamacpp_llm import LlamaCppRuntime
 from ..runtimes.openvino_llm import OpenVINOLLMRuntime
 from ..runtimes.openvino_whisper import OpenVINOWhisperRuntime
 from ..runtimes.qnn_whisper import QNNWhisperRuntime
@@ -209,11 +210,25 @@ class RuntimeManager:
         model_path = ModelDiscovery.get_model_path(self.config.model_path, "llm", model_to_load)
 
         if model_path is None:
-            logger.error(f"LLM model '{model_to_load}' not found")
+            logger.info(f"LLM model '{model_to_load}' not found locally, attempting to download...")
+            # Try to download the model
+            model_available = await self.downloader.ensure_model_available("llm", model_to_load)
+            if model_available:
+                # Refresh model discovery after download
+                self.available_models = ModelDiscovery.find_models(self.config.model_path)
+                model_path = ModelDiscovery.get_model_path(self.config.model_path, "llm", model_to_load)
+                logger.info(f"Successfully downloaded LLM model '{model_to_load}'")
+            else:
+                logger.error(f"Failed to download LLM model '{model_to_load}'")
+                return None
+
+        if model_path is None:
+            logger.error(f"LLM model '{model_to_load}' not found after download attempt")
             return None  # Return None instead of raising exception
 
-        # Create and load runtime with error recovery and retry logic
-        logger.info(f"Loading LLM model '{model_to_load}' on GPU")
+        # Determine runtime type based on model format
+        runtime_type = ModelDiscovery.get_llm_runtime_type(model_path)
+        logger.info(f"Loading LLM model '{model_to_load}' using {runtime_type.upper()} runtime")
 
         @retry_async(
             max_attempts=3,
@@ -225,11 +240,18 @@ class RuntimeManager:
             ),
         )
         async def _load_with_retry():
-            runtime = OpenVINOLLMRuntime(
-                model_path=model_path,
-                cache_dir=self.config.cache_dir or self.config.model_path / "cache",
-                device="GPU",
-            )
+            if runtime_type == "llamacpp":
+                runtime = LlamaCppRuntime(
+                    model_path=model_path,
+                    cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                    device="GPU",  # Will use Vulkan backend
+                )
+            else:  # openvino
+                runtime = OpenVINOLLMRuntime(
+                    model_path=model_path,
+                    cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                    device="GPU",
+                )
             await runtime.load()
             return runtime
 

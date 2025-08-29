@@ -45,12 +45,17 @@ async def chat_completions(
         Chat completion response or streaming response
     """
     try:
-        # Verify the requested model exists
-        if completion_request.model not in runtime_manager.available_models.get("llm", []):
-            available_models = runtime_manager.available_models.get("llm", [])
+        # Check if the model is in available models OR if it can be downloaded
+        available_llm_models = runtime_manager.available_models.get("llm", [])
+        
+        # Import the constants to check if model can be downloaded
+        from ...utils.model_downloader import DEFAULT_MODEL_REPOS
+        model_can_be_downloaded = completion_request.model in DEFAULT_MODEL_REPOS.get("llm", {})
+        
+        if completion_request.model not in available_llm_models and not model_can_be_downloaded:
             raise HTTPException(
                 status_code=400,
-                detail=f"Model '{completion_request.model}' not found. Available models: {available_models}",
+                detail=f"Model '{completion_request.model}' not found and not available for download. Available models: {available_llm_models}",
             )
 
         # Check if model is still downloading or loading

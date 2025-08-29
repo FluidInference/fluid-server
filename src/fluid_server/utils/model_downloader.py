@@ -5,7 +5,7 @@ Model downloading utilities for automatic model management
 import logging
 from pathlib import Path
 
-from huggingface_hub import HfApi, snapshot_download
+from huggingface_hub import HfApi, hf_hub_download, snapshot_download
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +16,18 @@ DEFAULT_MODEL_REPOS = {
         "qwen3-8b-int4-ov": "FluidInference/Qwen3-8B-int4-ov",
         "qwen3-4b-int8-ov": "FluidInference/Qwen3-4B-int8-ov",
         "phi-4-mini": "FluidInference/phi-4-mini-instruct-int4-ov-npu",
+        "gemma-3-4b-it-gguf": "ggml-org/gemma-3-4b-it-GGUF",
     },
     "whisper": {
         "whisper-tiny": "FluidInference/whisper-tiny-int4-ov-npu",
         "whisper-large-v3-turbo-fp16-ov-npu": "FluidInference/whisper-large-v3-turbo-fp16-ov-npu",
         "whisper-large-v3-turbo-qnn": "FluidInference/whisper-large-v3-turbo-qnn",
     },
+}
+
+# GGUF-specific file mappings for models that require specific files
+GGUF_FILE_MAPPINGS = {
+    "gemma-3-4b-it-gguf": "gemma-3-4b-it-Q4_K_M.gguf",  # 4-bit quantized version
 }
 
 
@@ -81,16 +87,32 @@ class ModelDownloader:
                 logger.error(f"Repository {repo_id} not found on HuggingFace Hub: {e}")
                 return None
 
-            # Download the model
-            downloaded_path = snapshot_download(
-                repo_id=repo_id,
-                local_dir=str(model_dir),
-                resume_download=True,
-                local_dir_use_symlinks=False,  # Copy files for Windows compatibility
-            )
+            # Check if this is a GGUF model that needs specific file download
+            if model_name in GGUF_FILE_MAPPINGS:
+                gguf_filename = GGUF_FILE_MAPPINGS[model_name]
+                logger.info(f"Downloading specific GGUF file: {gguf_filename}")
+                
+                # Download specific GGUF file
+                downloaded_file = hf_hub_download(
+                    repo_id=repo_id,
+                    filename=gguf_filename,
+                    local_dir=str(model_dir),
+                    resume_download=True,
+                )
+                
+                logger.info(f"Successfully downloaded GGUF file {gguf_filename} to {model_dir}")
+                return model_dir
+            else:
+                # Download the entire repository (for OpenVINO models)
+                downloaded_path = snapshot_download(
+                    repo_id=repo_id,
+                    local_dir=str(model_dir),
+                    resume_download=True,
+                    local_dir_use_symlinks=False,  # Copy files for Windows compatibility
+                )
 
-            logger.info(f"Successfully downloaded {model_name} to {downloaded_path}")
-            return Path(downloaded_path)
+                logger.info(f"Successfully downloaded {model_name} to {downloaded_path}")
+                return Path(downloaded_path)
 
         except Exception as e:
             logger.error(f"Failed to download {model_type} model '{model_name}': {e}")

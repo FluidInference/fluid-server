@@ -21,6 +21,7 @@ dependencies = [
     "soundfile>=0.13.1",
     "onnxruntime-qnn>=1.19.0",
     "openai-whisper>=20231117",
+    "llama-cpp-python>=0.3.0",
 ]
 
 [tool.uv]

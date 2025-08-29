@@ -198,7 +198,7 @@ def main():
     parser = argparse.ArgumentParser(description="Test Fluid Server Whisper transcription")
     parser.add_argument("--server", default="../windows/fluid-server.exe", 
                        help="Path to fluid-server.exe")
-    parser.add_argument("--model-path", default=r"C:\Users\brand\AppData\Local\Slipbox\Models",
+    parser.add_argument("--model-path", default=r"Models/",
                        help="Path to models directory")
     parser.add_argument("--audio-files", nargs="+", 
                        default=["test_tone.wav", "startup.wav"],

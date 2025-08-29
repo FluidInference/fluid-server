@@ -23,6 +23,7 @@ hiddenimports = [
     'fluid_server.app', 
     'fluid_server.managers', 
     'fluid_server.runtimes', 
+    'fluid_server.runtimes.llamacpp_llm',
     'fluid_server.api', 
     'fluid_server.models', 
     'fluid_server.utils', 
@@ -49,9 +50,12 @@ hiddenimports = [
     'whisper.tokenizer',
     'torch',
     'fluid_server.runtimes.qnn_whisper',
+    'llama_cpp',
+    'llama_cpp.llama_cpp',
+    'llama_cpp._internals',
 ]
 
-for pkg in ['openvino', 'openvino_genai', 'openvino_tokenizers', 'librosa', 'scipy', 'soundfile']:
+for pkg in ['openvino', 'openvino_genai', 'openvino_tokenizers', 'librosa', 'scipy', 'soundfile', 'llama_cpp']:
     tmp_ret = collect_all(pkg)
     datas += tmp_ret[0]
     binaries += tmp_ret[1]
