@@ -43,8 +43,12 @@ if (Test-Path "dist") {
 if (Test-Path "build") {
     Remove-Item -Path "build" -Recurse -Force
 }
-if (Test-Path "*.spec") {
-    Remove-Item -Path "*.spec" -Force
+# Keep the main spec file, only remove generated ones
+if (Test-Path "*-x64.spec") {
+    Remove-Item -Path "*-x64.spec" -Force
+}
+if (Test-Path "*-arm64.spec") {
+    Remove-Item -Path "*-arm64.spec" -Force
 }
 
 # Ensure virtual environment exists
