@@ -123,7 +123,7 @@ Examples:
 
     # Discover available models
     logger.info(f"Discovering models in {config.model_path}")
-    available_models = ModelDiscovery.find_models(config.model_path)
+    available_models = ModelDiscovery.find_models(config.model_path, config.llm_model)
 
     # Log available models
     if available_models.get("llm"):

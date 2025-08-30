@@ -12,6 +12,13 @@ from threading import Lock
 from typing import Any
 
 from .base import BaseRuntime
+try:
+    # Optional mapping for default HF repos and GGUF filenames
+    from ..utils.model_downloader import DEFAULT_MODEL_REPOS, GGUF_FILE_MAPPINGS
+except Exception:
+    # Keep runtime usable even if downloader utilities change
+    DEFAULT_MODEL_REPOS = {"llm": {}}
+    GGUF_FILE_MAPPINGS = {}
 
 logger = logging.getLogger(__name__)
 
@@ -31,47 +38,59 @@ class LlamaCppRuntime(BaseRuntime):
             )
         return cls._llamacpp_executor
 
-    def __init__(self, model_path: Path, cache_dir: Path, device: str) -> None:
+    def __init__(self, model_path: Path, cache_dir: Path, device: str, model_name: str) -> None:
         super().__init__(model_path, cache_dir, device)
         self.llama = None
         self.model_lock = Lock()
         self.last_used = time.time()
+        self._model_name = model_name  # Store the actual model identifier
+
+    @property
+    def model_name(self) -> str:
+        """Get the model name"""
+        return self._model_name
 
     async def load(self) -> None:
-        """Load the GGUF model with Vulkan backend"""
+        """Load the GGUF model with Vulkan backend using llama-cpp-python's from_pretrained"""
         if self.is_loaded:
             logger.debug(f"Model {self.model_name} already loaded")
             return
-
         try:
             # Lazy import - only import when actually loading
             from llama_cpp import Llama
             self.Llama = Llama
 
-            # Find the GGUF file in the model directory
-            gguf_files = list(self.model_path.glob("*.gguf"))
-            if not gguf_files:
-                raise FileNotFoundError(f"No GGUF files found in {self.model_path}")
-
-            gguf_file = gguf_files[0]  # Use the first GGUF file found
-            logger.info(f"Loading GGUF model '{self.model_name}' from {gguf_file}")
-            logger.info(f"Device: {self.device} (Vulkan backend)")
-
             start_time = time.time()
+            
+            # Parse repo_id and filename from model name or use mappings
+            repo_id, gguf_filename = self._parse_model_identifier()
+
+            if not repo_id or not gguf_filename:
+                raise ValueError(
+                    f"Could not determine repo_id and filename for model '{self.model_name}'. "
+                    f"Use 'repo_id/filename.gguf' format or ensure model has mapping in DEFAULT_MODEL_REPOS and GGUF_FILE_MAPPINGS."
+                )
+
+            logger.info(f"Loading GGUF model '{self.model_name}' via from_pretrained")
+            logger.info(f"Repo: {repo_id}, File: {gguf_filename}")
+            logger.info(f"Cache dir: {self.model_path} | Device: {self.device} (Vulkan backend)")
 
             # Configure for Vulkan backend
-            # Note: llama-cpp-python needs to be compiled with Vulkan support
-            # Set n_gpu_layers to offload layers to GPU via Vulkan
             n_gpu_layers = -1 if self.device == "GPU" else 0
 
-            self.llama = self.Llama(
-                model_path=str(gguf_file),
-                n_ctx=4096,  # Context length
-                n_batch=512,  # Batch size
-                n_gpu_layers=n_gpu_layers,  # Use GPU if available
+            # Use llama-cpp's from_pretrained for all GGUF models
+            self.llama = self.Llama.from_pretrained(
+                repo_id=repo_id,
+                filename=gguf_filename,
+                # Keep downloads within workspace to avoid default global cache permissions
+                cache_dir=str(self.model_path.resolve()),
+                # Allow resume; callers can set HF_HUB_ENABLE_HF_TRANSFER/HF_TOKEN via env if needed
+                resume_download=True,
+                # Generation params
+                n_ctx=4096,
+                n_batch=512,
+                n_gpu_layers=n_gpu_layers,
                 verbose=False,
-                # Vulkan-specific settings would go here if supported
-                # For now, rely on GPU layers offloading
             )
 
             load_time = time.time() - start_time
@@ -84,6 +103,27 @@ class LlamaCppRuntime(BaseRuntime):
             logger.error(f"Failed to load GGUF model: {e}")
             self.llama = None
             raise
+
+    def _parse_model_identifier(self) -> tuple[str | None, str | None]:
+        """Parse model identifier to extract repo_id and filename
+        
+        Returns:
+            Tuple of (repo_id, filename) or (None, None) if parsing fails
+        """
+        # Check if model_name contains '/' indicating repo_id/filename format
+        if "/" in self.model_name and self.model_name.count("/") >= 2:
+            # Format: repo_owner/repo_name/filename.gguf
+            parts = self.model_name.split("/")
+            if len(parts) >= 3:
+                repo_id = "/".join(parts[:-1])  # Everything except the last part
+                filename = parts[-1]            # Last part is the filename
+                return repo_id, filename
+        
+        # Fallback to mappings for backward compatibility
+        repo_id = DEFAULT_MODEL_REPOS.get("llm", {}).get(self.model_name)
+        filename = GGUF_FILE_MAPPINGS.get(self.model_name)
+        
+        return repo_id, filename
 
     def _generate_sync(self, prompt: str, max_tokens: int, temperature: float, top_p: float) -> str:
         """Synchronous text generation for use in executor"""

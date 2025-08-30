@@ -12,12 +12,13 @@ class ModelDiscovery:
     """Discover and validate available models in directory structure"""
 
     @staticmethod
-    def find_models(base_path: Path) -> dict[str, list[str]]:
+    def find_models(base_path: Path, requested_llm_model: str | None = None) -> dict[str, list[str]]:
         """
         Find all available models organized by type
 
         Args:
             base_path: Base directory containing model subdirectories
+            requested_llm_model: Specific LLM model requested (can be repo_id/filename format)
 
         Returns:
             Dictionary mapping model type to list of available model names
@@ -32,7 +33,7 @@ class ModelDiscovery:
             logger.warning(f"Model base path does not exist: {base_path}")
             return models
 
-        # Check LLM models
+        # Check LLM models - include local directories and repo_id/filename format
         llm_path = base_path / "llm"
         if llm_path.exists() and llm_path.is_dir():
             for model_dir in llm_path.iterdir():
@@ -41,6 +42,15 @@ class ModelDiscovery:
                     logger.info(f"Found LLM model: {model_dir.name}")
         else:
             logger.debug(f"No LLM directory found at {llm_path}")
+
+        # If requested_llm_model doesn't exist as local directory, assume it's a GGUF model
+        if requested_llm_model and requested_llm_model not in models["llm"]:
+            # Check if it exists as a local directory
+            local_model_path = llm_path / requested_llm_model if llm_path.exists() else None
+            if not (local_model_path and local_model_path.exists() and local_model_path.is_dir()):
+                # Not a local directory, assume it's a GGUF model
+                models["llm"].append(requested_llm_model)
+                logger.info(f"Added GGUF model (not found locally): {requested_llm_model}")
 
         # Check Whisper models
         whisper_path = base_path / "whisper"
@@ -178,8 +188,8 @@ class ModelDiscovery:
         Returns:
             Path to model if exists, None otherwise
         """
+        # Check if it's a local directory first
         model_path = base_path / model_type / model_name
-
         if model_path.exists() and model_path.is_dir():
             # Validate based on type
             if model_type == "llm" and ModelDiscovery._validate_llm_model(model_path):
@@ -190,28 +200,44 @@ class ModelDiscovery:
                 return model_path
             else:
                 logger.warning(f"Model validation failed for {model_path}")
-        else:
-            logger.debug(f"Model path does not exist: {model_path}")
-
+                return None
+        
+        # For LLM models not found locally, assume they're GGUF models - return cache path
+        if model_type == "llm":
+            # Return the base model cache path for GGUF models
+            cache_path = base_path / model_type / "cache"
+            cache_path.mkdir(parents=True, exist_ok=True)  # Ensure cache directory exists
+            return cache_path
+        
+        # For non-LLM models, they must exist locally
+        logger.debug(f"Model path does not exist: {model_path}")
         return None
 
     @staticmethod
-    def get_llm_runtime_type(model_path: Path) -> str:
+    def get_llm_runtime_type(model_path: Path, model_name: str | None = None) -> str:
         """
         Determine the appropriate runtime type for an LLM model
 
         Args:
             model_path: Path to the LLM model directory
+            model_name: Name of the model (for repo_id/filename detection)
 
         Returns:
             Runtime type: "openvino" or "llamacpp"
         """
-        # Check for GGUF files first
-        gguf_files = list(model_path.glob("*.gguf"))
-        if gguf_files:
-            return "llamacpp"
+        # Check for local GGUF files first
+        if model_path.exists():
+            gguf_files = list(model_path.glob("*.gguf"))
+            if gguf_files:
+                return "llamacpp"
         
-        # Default to OpenVINO for other valid LLM models
+        # Check if model_name suggests this is not a local directory (likely GGUF)
+        if model_name:
+            # If it contains slashes or doesn't exist locally, assume GGUF
+            if "/" in model_name or not model_path.exists():
+                return "llamacpp"
+        
+        # Default to OpenVINO for local directory models
         return "openvino"
 
     @staticmethod

@@ -50,7 +50,7 @@ class RuntimeManager:
         self.whisper_runtime: BaseRuntime | None = None
         self.loaded_llm_model: str | None = None
         self.loaded_whisper_model: str | None = None
-        self.available_models = ModelDiscovery.find_models(config.model_path)
+        self.available_models = ModelDiscovery.find_models(config.model_path, config.llm_model)
         self.downloader = ModelDownloader(
             config.model_path, config.cache_dir or config.model_path / "cache"
         )
@@ -109,7 +109,7 @@ class RuntimeManager:
                 )
                 if llm_available:
                     # Refresh model discovery after download
-                    self.available_models = ModelDiscovery.find_models(self.config.model_path)
+                    self.available_models = ModelDiscovery.find_models(self.config.model_path, self.config.llm_model)
                     self.download_status.pop(f"llm:{self.config.llm_model}", None)
                     logger.info(f"LLM model '{self.config.llm_model}' downloaded successfully")
                 else:
@@ -131,7 +131,7 @@ class RuntimeManager:
                 )
                 if whisper_available:
                     # Refresh model discovery after download
-                    self.available_models = ModelDiscovery.find_models(self.config.model_path)
+                    self.available_models = ModelDiscovery.find_models(self.config.model_path, self.config.llm_model)
                     self.download_status.pop(f"whisper:{self.config.whisper_model}", None)
                     logger.info(
                         f"Whisper model '{self.config.whisper_model}' downloaded successfully"
@@ -241,7 +241,7 @@ class RuntimeManager:
             return None  # Return None instead of raising exception
 
         # Determine runtime type based on model format
-        runtime_type = ModelDiscovery.get_llm_runtime_type(model_path)
+        runtime_type = ModelDiscovery.get_llm_runtime_type(model_path, model_to_load)
         logger.info(f"Loading LLM model '{model_to_load}' using {runtime_type.upper()} runtime")
 
         @retry_async(
@@ -259,6 +259,7 @@ class RuntimeManager:
                     model_path=model_path,
                     cache_dir=self.config.cache_dir or self.config.model_path / "cache",
                     device="GPU",  # Will use Vulkan backend
+                    model_name=model_to_load,  # Pass the actual model identifier
                 )
             else:  # openvino
                 runtime = OpenVINOLLMRuntime(

@@ -17,6 +17,7 @@ DEFAULT_MODEL_REPOS = {
         "qwen3-4b-int8-ov": "FluidInference/Qwen3-4B-int8-ov",
         "phi-4-mini": "FluidInference/phi-4-mini-instruct-int4-ov-npu",
         "gemma-3-4b-it-gguf": "ggml-org/gemma-3-4b-it-GGUF",
+        "gemma-3-4b-it-qat-GGUF": "unsloth/gemma-3-4b-it-qat-GGUF"
     },
     "whisper": {
         "whisper-tiny": "FluidInference/whisper-tiny-int4-ov-npu",
@@ -27,7 +28,8 @@ DEFAULT_MODEL_REPOS = {
 
 # GGUF-specific file mappings for models that require specific files
 GGUF_FILE_MAPPINGS = {
-    "gemma-3-4b-it-gguf": "gemma-3-4b-it-Q4_K_M.gguf",  # 4-bit quantized version
+    "gemma-3-4b-it-gguf": "gemma-3-4b-it-Q4_K_M.gguf",
+    "gemma-3-4b-it-qat-GGUF": "gemma-3-4b-it-qat-BF16.gguf",
 }
 
 
@@ -87,23 +89,9 @@ class ModelDownloader:
                 logger.error(f"Repository {repo_id} not found on HuggingFace Hub: {e}")
                 return None
 
-            # Check if this is a GGUF model that needs specific file download
-            if model_name in GGUF_FILE_MAPPINGS:
-                gguf_filename = GGUF_FILE_MAPPINGS[model_name]
-                logger.info(f"Downloading specific GGUF file: {gguf_filename}")
-                
-                # Download specific GGUF file
-                downloaded_file = hf_hub_download(
-                    repo_id=repo_id,
-                    filename=gguf_filename,
-                    local_dir=str(model_dir),
-                    resume_download=True,
-                )
-                
-                logger.info(f"Successfully downloaded GGUF file {gguf_filename} to {model_dir}")
-                return model_dir
-            else:
-                # Download the entire repository (for OpenVINO models)
+            # GGUF models are now handled directly by llama-cpp-python's from_pretrained
+            # For non-GGUF models (OpenVINO, Whisper), download the entire repository
+            if model_name not in GGUF_FILE_MAPPINGS:
                 downloaded_path = snapshot_download(
                     repo_id=repo_id,
                     local_dir=str(model_dir),
@@ -113,6 +101,9 @@ class ModelDownloader:
 
                 logger.info(f"Successfully downloaded {model_name} to {downloaded_path}")
                 return Path(downloaded_path)
+            else:
+                logger.info(f"GGUF model {model_name} will be downloaded by llama-cpp-python directly")
+                return None
 
         except Exception as e:
             logger.error(f"Failed to download {model_type} model '{model_name}': {e}")
