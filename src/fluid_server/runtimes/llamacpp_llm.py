@@ -65,10 +65,10 @@ class LlamaCppRuntime(BaseRuntime):
             # Parse repo_id and filename from model name or use mappings
             repo_id, gguf_filename = self._parse_model_identifier()
 
-            if not repo_id or not gguf_filename:
+            if not repo_id:
                 raise ValueError(
-                    f"Could not determine repo_id and filename for model '{self.model_name}'. "
-                    f"Use 'repo_id/filename.gguf' format or ensure model has mapping in DEFAULT_MODEL_REPOS and GGUF_FILE_MAPPINGS."
+                    f"Could not determine repo_id for model '{self.model_name}'. "
+                    f"Use 'repo_id/filename.gguf' or 'repo_id' format, or ensure model has mapping in DEFAULT_MODEL_REPOS."
                 )
 
             logger.info(f"Loading GGUF model '{self.model_name}' via from_pretrained")
@@ -79,19 +79,35 @@ class LlamaCppRuntime(BaseRuntime):
             n_gpu_layers = -1 if self.device == "GPU" else 0
 
             # Use llama-cpp's from_pretrained for all GGUF models
-            self.llama = self.Llama.from_pretrained(
-                repo_id=repo_id,
-                filename=gguf_filename,
-                # Keep downloads within workspace to avoid default global cache permissions
-                cache_dir=str(self.model_path.resolve()),
-                # Allow resume; callers can set HF_HUB_ENABLE_HF_TRANSFER/HF_TOKEN via env if needed
-                resume_download=True,
-                # Generation params
-                n_ctx=4096,
-                n_batch=512,
-                n_gpu_layers=n_gpu_layers,
-                verbose=False,
-            )
+            if gguf_filename:
+                # Explicit filename provided
+                self.llama = self.Llama.from_pretrained(
+                    repo_id=repo_id,
+                    filename=gguf_filename,
+                    # Keep downloads within workspace to avoid default global cache permissions
+                    cache_dir=str(self.model_path.resolve()),
+                    # Allow resume; callers can set HF_HUB_ENABLE_HF_TRANSFER/HF_TOKEN via env if needed
+                    resume_download=True,
+                    # Generation params
+                    n_ctx=4096,
+                    n_batch=512,
+                    n_gpu_layers=n_gpu_layers,
+                    verbose=False,
+                )
+            else:
+                # Auto-detect GGUF file from repo
+                self.llama = self.Llama.from_pretrained(
+                    repo_id=repo_id,
+                    # Keep downloads within workspace to avoid default global cache permissions
+                    cache_dir=str(self.model_path.resolve()),
+                    # Allow resume; callers can set HF_HUB_ENABLE_HF_TRANSFER/HF_TOKEN via env if needed
+                    resume_download=True,
+                    # Generation params
+                    n_ctx=4096,
+                    n_batch=512,
+                    n_gpu_layers=n_gpu_layers,
+                    verbose=False,
+                )
 
             load_time = time.time() - start_time
             logger.info(f"GGUF model loaded successfully in {load_time:.1f}s")
@@ -107,16 +123,27 @@ class LlamaCppRuntime(BaseRuntime):
     def _parse_model_identifier(self) -> tuple[str | None, str | None]:
         """Parse model identifier to extract repo_id and filename
         
+        Supports formats:
+        - repo_owner/repo_name (auto-detect GGUF file)  
+        - repo_owner/repo_name/filename.gguf (explicit file)
+        - model_name (use mappings)
+        
         Returns:
             Tuple of (repo_id, filename) or (None, None) if parsing fails
         """
-        # Check if model_name contains '/' indicating repo_id/filename format
-        if "/" in self.model_name and self.model_name.count("/") >= 2:
-            # Format: repo_owner/repo_name/filename.gguf
+        # Check if model_name contains '/' indicating repo format
+        if "/" in self.model_name:
             parts = self.model_name.split("/")
+            
             if len(parts) >= 3:
+                # Format: repo_owner/repo_name/filename.gguf
                 repo_id = "/".join(parts[:-1])  # Everything except the last part
                 filename = parts[-1]            # Last part is the filename
+                return repo_id, filename
+            elif len(parts) == 2:
+                # Format: repo_owner/repo_name (auto-detect GGUF file)
+                repo_id = self.model_name
+                filename = None  # Let llama-cpp auto-detect
                 return repo_id, filename
         
         # Fallback to mappings for backward compatibility
@@ -169,60 +196,101 @@ class LlamaCppRuntime(BaseRuntime):
         return result
 
     def generate_stream_sync(
-        self, prompt: str, max_tokens: int, temperature: float, top_p: float
-    ) -> list[str]:
-        """Synchronous streaming generation for use in executor"""
-        tokens: list[str] = []
+        self, prompt: str, max_tokens: int, temperature: float, top_p: float, token_queue: asyncio.Queue, loop: asyncio.AbstractEventLoop
+    ) -> None:
+        """Synchronous streaming generation for use in executor - now uses queue"""
+        try:
+            with self.model_lock:
+                if self.llama is None:
+                    raise RuntimeError("Model not initialized")
 
-        with self.model_lock:
-            if self.llama is None:
-                raise RuntimeError("Model not initialized")
+                self.last_used = time.time()
 
-            self.last_used = time.time()
+                # Generate with streaming
+                stream = self.llama(
+                    prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=top_p,
+                    repeat_penalty=1.1,
+                    echo=False,
+                    stream=True,
+                )
 
-            # Generate with streaming
-            stream = self.llama(
-                prompt,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                repeat_penalty=1.1,
-                echo=False,
-                stream=True,
+                # Send tokens to queue as they're generated
+                for output in stream:
+                    if isinstance(output, dict) and "choices" in output:
+                        token = output["choices"][0]["text"]
+                        if token:  # Only send non-empty tokens
+                            try:
+                                asyncio.run_coroutine_threadsafe(
+                                    token_queue.put(token), loop
+                                )
+                            except Exception as e:
+                                logger.error(f"Failed to send token to queue: {e}")
+                                break
+        except Exception as e:
+            # Signal completion/error by sending None
+            asyncio.run_coroutine_threadsafe(
+                token_queue.put(None), loop
             )
-
-            # Collect all tokens
-            for output in stream:
-                if isinstance(output, dict) and "choices" in output:
-                    token = output["choices"][0]["text"]
-                    if token:  # Only add non-empty tokens
-                        tokens.append(token)
-
-        return tokens
+            raise
+        finally:
+            # Signal completion by sending None
+            asyncio.run_coroutine_threadsafe(
+                token_queue.put(None), loop
+            )
 
     async def generate_stream(
         self, prompt: str, max_tokens: int, temperature: float, top_p: float
     ) -> AsyncIterator[str]:
-        """Stream text generation token by token"""
+        """Stream text generation token by token using async queue"""
         if not self.is_loaded:
             await self.load()
 
+        # Create queue for token passing
+        token_queue = asyncio.Queue(maxsize=100)  # Buffer up to 100 tokens
+        loop = asyncio.get_event_loop()
+
         try:
-            # Run synchronous generation in dedicated executor
-            loop = asyncio.get_event_loop()
-            tokens = await loop.run_in_executor(
+            # Start synchronous generation in dedicated executor
+            task = loop.run_in_executor(
                 self.get_executor(),
                 self.generate_stream_sync,
                 prompt,
                 max_tokens,
                 temperature,
                 top_p,
+                token_queue,
+                loop,
             )
 
-            # Yield tokens one by one
-            for token in tokens:
-                yield token
-                await asyncio.sleep(0)  # Allow other async operations
+            # Yield tokens as they become available
+            while True:
+                try:
+                    # Get token with timeout to handle hung generators
+                    token = await asyncio.wait_for(token_queue.get(), timeout=30.0)
+                    
+                    if token is None:  # End of stream signal
+                        break
+                        
+                    yield token
+                    await asyncio.sleep(0)  # Allow other async operations
+                    
+                except asyncio.TimeoutError:
+                    logger.warning("Token generation timeout - ending stream")
+                    break
+                except Exception as e:
+                    logger.error(f"Error receiving token: {e}")
+                    break
+
+            # Ensure the executor task completes
+            try:
+                await asyncio.wait_for(task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("Generator task did not complete cleanly")
+            except Exception as e:
+                logger.error(f"Generator task error: {e}")
 
         except Exception as e:
             logger.error(f"Stream generation failed: {e}")

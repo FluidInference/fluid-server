@@ -2,8 +2,10 @@
 OpenAI-compatible chat completions endpoint
 """
 
+import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Annotated
 
@@ -33,6 +35,7 @@ def get_runtime_manager(request: Request) -> RuntimeManager:
 async def chat_completions(
     completion_request: ChatCompletionRequest,
     runtime_manager: Annotated[RuntimeManager, Depends(get_runtime_manager)],
+    request: Request,
 ):
     """
     OpenAI-compatible chat completions endpoint
@@ -94,8 +97,13 @@ async def chat_completions(
         # Handle streaming
         if completion_request.stream:
             return StreamingResponse(
-                _stream_chat_completion(llm, prompt, completion_request),
+                _stream_chat_completion(llm, prompt, completion_request, request),
                 media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",  # Disable nginx buffering
+                },
             )
 
         # Non-streaming generation
@@ -155,24 +163,25 @@ def _build_prompt(messages: list[ChatMessage]) -> str:
 
 
 async def _stream_chat_completion(
-    llm, prompt: str, request: ChatCompletionRequest
+    llm, prompt: str, request: ChatCompletionRequest, http_request: Request
 ) -> AsyncIterator[str]:
     """
-    Stream chat completion responses in SSE format
+    Stream chat completion responses in SSE format with keepalive heartbeat
 
     Args:
         llm: LLM runtime instance
         prompt: Formatted prompt
         request: Original request
+        http_request: FastAPI request object for connection monitoring
 
     Yields:
-        SSE formatted response chunks
+        SSE formatted response chunks with keepalive heartbeat
     """
     import uuid
 
     try:
         response_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
-
+        
         # Send initial chunk
         initial_chunk = ChatCompletionStreamResponse(
             id=response_id,
@@ -185,19 +194,67 @@ async def _stream_chat_completion(
         )
         yield f"data: {initial_chunk.model_dump_json()}\n\n"
 
-        # Stream tokens
-        async for token in llm.generate_stream(
+        # Create token stream and heartbeat stream
+        token_stream = llm.generate_stream(
             prompt=prompt,
             max_tokens=request.max_tokens or 512,
             temperature=request.temperature or 0.7,
             top_p=request.top_p or 0.95,
-        ):
+        )
+        
+        # Buffer for sentence-based streaming
+        sentence_buffer = ""
+        last_flush_time = time.time()
+        last_heartbeat_time = time.time()
+        
+        # Stream tokens with heartbeat and sentence buffering
+        async for token in token_stream:
+            # Check for client disconnection
+            if await http_request.is_disconnected():
+                logger.info("Client disconnected, stopping stream")
+                break
+                
+            # Add token to sentence buffer
+            sentence_buffer += token
+            current_time = time.time()
+            
+            # Send heartbeat if needed (every 20 seconds)
+            if current_time - last_heartbeat_time >= 20.0:
+                yield ": keepalive\n\n"
+                last_heartbeat_time = current_time
+            
+            # Check if we should flush the buffer
+            should_flush = (
+                # Found sentence boundary
+                any(punct in sentence_buffer for punct in ['.', '!', '?', '\n']) or
+                # Buffer timeout (1.5 seconds since last flush)
+                (current_time - last_flush_time >= 1.5 and sentence_buffer.strip())
+            )
+            
+            if should_flush:
+                # Send buffered content
+                chunk = ChatCompletionStreamResponse(
+                    id=response_id,
+                    model=request.model,
+                    choices=[
+                        ChatCompletionStreamChoice(
+                            index=0, delta={"content": sentence_buffer}, finish_reason=None
+                        )
+                    ],
+                )
+                yield f"data: {chunk.model_dump_json()}\n\n"
+                
+                sentence_buffer = ""
+                last_flush_time = current_time
+        
+        # Flush any remaining content
+        if sentence_buffer.strip():
             chunk = ChatCompletionStreamResponse(
                 id=response_id,
                 model=request.model,
                 choices=[
                     ChatCompletionStreamChoice(
-                        index=0, delta={"content": token}, finish_reason=None
+                        index=0, delta={"content": sentence_buffer}, finish_reason=None
                     )
                 ],
             )

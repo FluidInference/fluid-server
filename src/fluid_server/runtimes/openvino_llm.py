@@ -161,9 +161,9 @@ class OpenVINOLLMRuntime(BaseRuntime):
         return result
 
     def generate_stream_sync(
-        self, prompt: str, max_tokens: int, temperature: float, top_p: float
-    ) -> list[str]:
-        """Synchronous streaming generation for use in executor"""
+        self, prompt: str, max_tokens: int, temperature: float, top_p: float, token_queue: asyncio.Queue, loop: asyncio.AbstractEventLoop
+    ) -> None:
+        """Synchronous streaming generation for use in executor - now uses queue"""
         config = self.ov_genai.GenerationConfig()
         config.max_new_tokens = max_tokens
         config.temperature = temperature
@@ -171,45 +171,86 @@ class OpenVINOLLMRuntime(BaseRuntime):
         config.repetition_penalty = 1.1
         config.do_sample = True
 
-        tokens: list[str] = []
-
         def streamer_callback(token: str) -> bool:
-            """Callback for streaming tokens"""
-            tokens.append(token)
+            """Callback for streaming tokens - sends to queue immediately"""
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    token_queue.put(token), loop
+                )
+            except Exception as e:
+                logger.error(f"Failed to send token to queue: {e}")
+                return True  # Stop generation on error
             return False  # Continue generation
 
-        with self.pipeline_lock:
-            if self.pipeline is None:
-                raise RuntimeError("Pipeline not initialized")
+        try:
+            with self.pipeline_lock:
+                if self.pipeline is None:
+                    raise RuntimeError("Pipeline not initialized")
 
-            self.last_used = time.time()
-            self.pipeline.generate(prompt, config, streamer_callback)
-
-        return tokens
+                self.last_used = time.time()
+                self.pipeline.generate(prompt, config, streamer_callback)
+        except Exception as e:
+            # Signal completion/error by sending None
+            asyncio.run_coroutine_threadsafe(
+                token_queue.put(None), loop
+            )
+            raise
+        finally:
+            # Signal completion by sending None
+            asyncio.run_coroutine_threadsafe(
+                token_queue.put(None), loop
+            )
 
     async def generate_stream(
         self, prompt: str, max_tokens: int, temperature: float, top_p: float
     ) -> AsyncIterator[str]:
-        """Stream text generation token by token"""
+        """Stream text generation token by token using async queue"""
         if not self.is_loaded:
             await self.load()
 
+        # Create queue for token passing
+        token_queue = asyncio.Queue(maxsize=100)  # Buffer up to 100 tokens
+        loop = asyncio.get_event_loop()
+
         try:
-            # Run synchronous generation in dedicated LLM executor
-            loop = asyncio.get_event_loop()
-            tokens = await loop.run_in_executor(
+            # Start synchronous generation in dedicated LLM executor
+            task = loop.run_in_executor(
                 self.get_executor(),
                 self.generate_stream_sync,
                 prompt,
                 max_tokens,
                 temperature,
                 top_p,
+                token_queue,
+                loop,
             )
 
-            # Yield tokens one by one
-            for token in tokens:
-                yield token
-                await asyncio.sleep(0)  # Allow other async operations
+            # Yield tokens as they become available
+            while True:
+                try:
+                    # Get token with timeout to handle hung generators
+                    token = await asyncio.wait_for(token_queue.get(), timeout=30.0)
+                    
+                    if token is None:  # End of stream signal
+                        break
+                        
+                    yield token
+                    await asyncio.sleep(0)  # Allow other async operations
+                    
+                except asyncio.TimeoutError:
+                    logger.warning("Token generation timeout - ending stream")
+                    break
+                except Exception as e:
+                    logger.error(f"Error receiving token: {e}")
+                    break
+
+            # Ensure the executor task completes
+            try:
+                await asyncio.wait_for(task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("Generator task did not complete cleanly")
+            except Exception as e:
+                logger.error(f"Generator task error: {e}")
 
         except Exception as e:
             logger.error(f"Stream generation failed: {e}")

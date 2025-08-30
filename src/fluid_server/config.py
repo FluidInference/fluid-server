@@ -12,7 +12,7 @@ class ServerConfig:
 
     # Server
     host: str = "127.0.0.1"
-    port: int = 8080
+    port: int = 3847
 
     # Model paths
     model_path: Path = Path("./models")  # Base path for all models

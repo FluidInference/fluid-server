@@ -4,7 +4,7 @@ Write-Host "=== Fluid Server Start Script ===" -ForegroundColor Cyan
 # Default parameters
 $modelPath = ".\models"
 $serverHost = "127.0.0.1"
-$port = 8080
+$port = 3847
 $device = "GPU"
 
 # Parse command line arguments
@@ -18,7 +18,7 @@ for ($i = 0; $i -lt $args.Length; $i++) {
             Write-Host "Options:" -ForegroundColor Yellow
             Write-Host "  --model-path PATH    Model directory path (default: .\models)" -ForegroundColor White
             Write-Host "  --host HOST         Host to bind to (default: 127.0.0.1)" -ForegroundColor White
-            Write-Host "  --port PORT         Port to bind to (default: 8080)" -ForegroundColor White
+            Write-Host "  --port PORT         Port to bind to (default: 3847)" -ForegroundColor White
             Write-Host "  --help              Show this help" -ForegroundColor White
             Write-Host "`nExamples:" -ForegroundColor Yellow
             Write-Host "  .\scripts\start_server.ps1" -ForegroundColor White

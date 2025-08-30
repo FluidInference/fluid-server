@@ -9,9 +9,9 @@ from pathlib import Path
 
 import uvicorn
 
-from fluid_server.app import create_app
-from fluid_server.config import ServerConfig
-from fluid_server.utils.model_discovery import ModelDiscovery
+from .app import create_app
+from .config import ServerConfig
+from .utils.model_discovery import ModelDiscovery
 
 # Configure logging
 logging.basicConfig(
@@ -43,7 +43,7 @@ Examples:
 
     # Server options
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8080, help="Port to bind to (default: 8080)")
+    parser.add_argument("--port", type=int, default=3847, help="Port to bind to (default: 3847)")
 
     # Model paths - simple!
     parser.add_argument(
@@ -62,7 +62,7 @@ Examples:
     # Model selection
     parser.add_argument(
         "--llm-model",
-        default="qwen3-8b-int4-ov",
+        default="gemma-3-4b-it-gguf",
         help="LLM model to use (directory name in model-path/llm/)",
     )
     parser.add_argument(
@@ -218,7 +218,7 @@ Examples:
     if num_workers > 1 and not is_frozen:
         # Use string reference for multiple workers in development
         uvicorn.run(
-            "fluid_server.app:app",
+            "src.fluid_server.app:app",
             host=config.host,
             port=config.port,
             reload=args.reload,

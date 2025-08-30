@@ -129,7 +129,7 @@ def create_worker_app() -> FastAPI:
 
     config = ServerConfig(
         host=os.getenv("FLUID_HOST", "127.0.0.1"),
-        port=int(os.getenv("FLUID_PORT", "8080")),
+        port=int(os.getenv("FLUID_PORT", "3847")),
         model_path=Path(os.getenv("FLUID_MODEL_PATH", "./models")),
         cache_dir=Path(os.getenv("FLUID_CACHE_DIR", "")) if os.getenv("FLUID_CACHE_DIR") else None,
         llm_model=os.getenv("FLUID_LLM_MODEL", "qwen3-8b-int4-ov"),

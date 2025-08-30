@@ -1,25 +1,23 @@
-# Fluid Server - AI server integrated into your Windows Apps
+# Fluid Server — AI server integrated into your Windows apps
 
-** THIS IS STILL UNDER DEVELOPMENT **
+**THIS PROJECT IS UNDER ACTIVE DEVELOPMENT**
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da.svg)](https://discord.gg/WNsvaCtmDe)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/collections/FluidInference)
 
-The goal is to bring a portable, packaged OpenAI-like server for any desktop application to integrate with, providing the most optimal model configurations for each chipset. We prioritize AI accelerators where possible.
+The goal is to provide a portable, packaged OpenAI‑like server that any Windows desktop application can integrate with, offering optimal model configurations for each chipset. We prioritize AI accelerators where possible; for LLM inference we currently use llama.cpp.
 
-The goal is to eventually provide all the necessary features like LLM, Transcription, Text to Speech, Speaker diarization, VAD, etc...  
+We plan to provide features including LLM, transcription, text‑to‑speech, speaker diarization, VAD, and more.  
 
-Designed to bundle into a single binary for easy integration into existing desktop applications.
+It is designed to bundle into a single binary for easy integration into existing desktop applications.
 
-
-
-**Currently Supported NPU Runtimes:**
+**Currently supported NPU runtimes for transcription:**
 - **Intel NPU** via OpenVINO backend
 - **Qualcomm NPU** via QNN (Snapdragon X Elite)
 
-The server automatically detects your model format and selects the appropriate runtime for optimal performance. For Mac-related solutions, please see [FluidAudio](https://github.com/FluidInference/FluidAudio)
+The server automatically detects your model format and selects the appropriate runtime for optimal performance. For macOS, see [FluidAudio](https://github.com/FluidInference/FluidAudio).
 
-We built this because of the lack of support for Windows because of the fragmentation in support across Windows desktops and there doesn't seem to be a standard yet for running inference locally across all the chipsets, especially on AI accelerators. 
+We built this due to fragmented support across Windows devices. There is no clear standard for running local inference across chipsets—especially on AI accelerators.
 
 ## NPU Support
 
@@ -33,7 +31,7 @@ Fluid Server supports multiple NPU runtimes for optimal performance on different
 ### Qualcomm NPU (QNN)
 - **Models**: Uses ONNX format with device-specific compilation
 - **Location**: `models/whisper/whisper-large-v3-turbo-qnn/snapdragon-x-elite/`
-- **Performance**: 16x+ real-time transcription on Snapdragon X Elite
+- **Performance**: 16× real‑time transcription on Snapdragon X Elite
 - **Hardware**: Snapdragon X Elite devices with HTP (Hexagon Tensor Processor)
 
 ## Quick Start
@@ -77,7 +75,7 @@ Run the build script:
 .\build.ps1
 ```
 
-This creates `dist/fluid-server.exe` (~276MB with OpenVINO + QNN bundled).
+This creates `dist/fluid-server.exe` (approximately 276 MB with OpenVINO + QNN bundled).
 
 ### Test Executable
 
@@ -107,7 +105,7 @@ Command-line options:
 # Check server health
 curl http://localhost:8080/health
 
-# Chat completion (non-streaming)
+# Chat completion (non‑streaming)
 curl -X POST http://localhost:8080/v1/chat/completions `
   -H "Content-Type: application/json" `
   -d '{"model": "qwen3-8b-int8-ov", "messages": [{"role": "user", "content": "Hello!"}], "max_tokens": 100}'
@@ -171,19 +169,19 @@ var response = await client.GetChatCompletionsAsync(
 
 ### Why Python?
 
-Very valid question. It's just the easiest to support. Most ML work is done in Python, so it's the best supported by all the various runtimes we want to support. And with PyInstaller, being able to bundle it into a single .exe file is very helpful.
+Good question. It is the easiest to support. Most ML work is done in Python, so it is the best supported across the runtimes we target. PyInstaller lets us bundle everything into a single .exe, which is very helpful.
 
-C++ and Rust are also other options we have considered, but they will require more investment and the team isn't familiar enough with Rust to make that jump. We may end up building a C++ server later on as well, but we want to avoid any heavy lifting on the inference side as much as possible.
+C++ and Rust are options we have considered, but they require more investment, and the team is not yet familiar enough with Rust to make that jump. We may build a C++ server later, but we want to avoid heavy lifting on the inference side where possible.
 
-Solutions like `uv`, `ty`, `fastapi` and `Pydantic` have made Python much more manageable as well.
+Tools like `uv`, `ty`, `FastAPI`, and `Pydantic` have also made Python much more manageable.
 
 ### Why not just llama.cpp or whisper.cpp?
 
-Solid options, but the goal is to support other runtimes and model formats beyond GGML ones. We want to best leverage AI accelerators available on various devices, and this is the simplest way to achieve that.
+Those are solid options, but the goal is to support other runtimes and model formats beyond GGML. We want to leverage AI accelerators available on various devices, and this is the simplest way to achieve that.
 
 ## Acknowledgements
 
-Built using `ty`, `FastAPI`, `Pydantic`, `ONNX Runtime`, `OpenAI Whisper` and various other AI libraries.
+Built using `ty`, `FastAPI`, `Pydantic`, `ONNX Runtime`, `OpenAI Whisper`, and various other AI libraries.
 
 **Runtime Technologies:**
 - `OpenVINO` - Intel NPU and GPU acceleration
