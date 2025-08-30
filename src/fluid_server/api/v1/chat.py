@@ -166,7 +166,7 @@ async def _stream_chat_completion(
     llm, prompt: str, request: ChatCompletionRequest, http_request: Request
 ) -> AsyncIterator[str]:
     """
-    Stream chat completion responses in SSE format with keepalive heartbeat
+    Stream chat completion responses in SSE format with keepalive heartbeat and improved cancellation
 
     Args:
         llm: LLM runtime instance
@@ -179,8 +179,16 @@ async def _stream_chat_completion(
     """
     import uuid
 
+    token_stream = None
+    stream_cancelled = False
+    
     try:
         response_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
+        
+        # Check initial connection state
+        if await http_request.is_disconnected():
+            logger.info("Client already disconnected before streaming started")
+            return
         
         # Send initial chunk
         initial_chunk = ChatCompletionStreamResponse(
@@ -194,7 +202,7 @@ async def _stream_chat_completion(
         )
         yield f"data: {initial_chunk.model_dump_json()}\n\n"
 
-        # Create token stream and heartbeat stream
+        # Create token stream (this is an async generator, not awaitable)
         token_stream = llm.generate_stream(
             prompt=prompt,
             max_tokens=request.max_tokens or 512,
@@ -206,20 +214,39 @@ async def _stream_chat_completion(
         sentence_buffer = ""
         last_flush_time = time.time()
         last_heartbeat_time = time.time()
+        last_disconnect_check = time.time()
+        token_count = 0
         
         # Stream tokens with heartbeat and sentence buffering
         async for token in token_stream:
-            # Check for client disconnection
-            if await http_request.is_disconnected():
-                logger.info("Client disconnected, stopping stream")
-                break
+            token_count += 1
+            current_time = time.time()
+            
+            # Check for client disconnection more frequently during long generations
+            # Check every 10 tokens or every 2 seconds, whichever comes first
+            should_check_disconnect = (
+                token_count % 10 == 0 or 
+                (current_time - last_disconnect_check >= 2.0)
+            )
+            
+            if should_check_disconnect:
+                if await http_request.is_disconnected():
+                    logger.info(f"Client disconnected after {token_count} tokens, cancelling stream")
+                    stream_cancelled = True
+                    break
+                last_disconnect_check = current_time
                 
             # Add token to sentence buffer
             sentence_buffer += token
-            current_time = time.time()
             
             # Send heartbeat if needed (every 20 seconds)
             if current_time - last_heartbeat_time >= 20.0:
+                # Check connection before sending heartbeat
+                if await http_request.is_disconnected():
+                    logger.info("Client disconnected during heartbeat check, cancelling stream")
+                    stream_cancelled = True
+                    break
+                    
                 yield ": keepalive\n\n"
                 last_heartbeat_time = current_time
             
@@ -228,10 +255,18 @@ async def _stream_chat_completion(
                 # Found sentence boundary
                 any(punct in sentence_buffer for punct in ['.', '!', '?', '\n']) or
                 # Buffer timeout (1.5 seconds since last flush)
-                (current_time - last_flush_time >= 1.5 and sentence_buffer.strip())
+                (current_time - last_flush_time >= 1.5 and sentence_buffer.strip()) or
+                # Force flush every 50 tokens to prevent excessive buffering
+                token_count % 50 == 0
             )
             
             if should_flush:
+                # Check connection before sending chunk
+                if await http_request.is_disconnected():
+                    logger.info("Client disconnected during chunk send, cancelling stream")
+                    stream_cancelled = True
+                    break
+                
                 # Send buffered content
                 chunk = ChatCompletionStreamResponse(
                     id=response_id,
@@ -247,29 +282,57 @@ async def _stream_chat_completion(
                 sentence_buffer = ""
                 last_flush_time = current_time
         
-        # Flush any remaining content
-        if sentence_buffer.strip():
-            chunk = ChatCompletionStreamResponse(
+        # Only send completion if stream wasn't cancelled
+        if not stream_cancelled:
+            # Flush any remaining content
+            if sentence_buffer.strip():
+                chunk = ChatCompletionStreamResponse(
+                    id=response_id,
+                    model=request.model,
+                    choices=[
+                        ChatCompletionStreamChoice(
+                            index=0, delta={"content": sentence_buffer}, finish_reason=None
+                        )
+                    ],
+                )
+                yield f"data: {chunk.model_dump_json()}\n\n"
+
+            # Send final chunk
+            final_chunk = ChatCompletionStreamResponse(
                 id=response_id,
                 model=request.model,
-                choices=[
-                    ChatCompletionStreamChoice(
-                        index=0, delta={"content": sentence_buffer}, finish_reason=None
-                    )
-                ],
+                choices=[ChatCompletionStreamChoice(index=0, delta={}, finish_reason="stop")],
             )
-            yield f"data: {chunk.model_dump_json()}\n\n"
+            yield f"data: {final_chunk.model_dump_json()}\n\n"
+            yield "data: [DONE]\n\n"
+            
+            logger.info(f"Stream completed successfully with {token_count} tokens")
+        else:
+            logger.info(f"Stream cancelled after {token_count} tokens")
 
-        # Send final chunk
-        final_chunk = ChatCompletionStreamResponse(
-            id=response_id,
-            model=request.model,
-            choices=[ChatCompletionStreamChoice(index=0, delta={}, finish_reason="stop")],
-        )
-        yield f"data: {final_chunk.model_dump_json()}\n\n"
-        yield "data: [DONE]\n\n"
-
+    except asyncio.CancelledError:
+        logger.info("Stream cancelled by client")
+        stream_cancelled = True
+        # Don't re-raise, just end the stream gracefully
     except Exception as e:
         logger.error(f"Stream error: {e}", exc_info=True)
-        error_msg = {"error": str(e)}
-        yield f"data: {json.dumps(error_msg)}\n\n"
+        # Only send error response if client is still connected
+        try:
+            if not (stream_cancelled or await http_request.is_disconnected()):
+                error_msg = {"error": str(e)}
+                yield f"data: {json.dumps(error_msg)}\n\n"
+        except Exception:
+            logger.error("Failed to send error response to client")
+    finally:
+        # Attempt to clean up the token stream
+        if token_stream is not None:
+            try:
+                # If the stream has a close method, call it
+                if hasattr(token_stream, 'aclose'):
+                    await token_stream.aclose()
+                elif hasattr(token_stream, 'close'):
+                    token_stream.close()
+            except Exception as e:
+                logger.debug(f"Error closing token stream: {e}")
+                
+        logger.debug("Stream cleanup completed")

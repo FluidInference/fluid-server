@@ -9,9 +9,16 @@ from pathlib import Path
 
 import uvicorn
 
-from .app import create_app
-from .config import ServerConfig
-from .utils.model_discovery import ModelDiscovery
+try:
+    # Try relative imports (development mode)
+    from .app import create_app
+    from .config import ServerConfig
+    from .utils.model_discovery import ModelDiscovery
+except ImportError:
+    # Fallback to absolute imports (PyInstaller executable)
+    from fluid_server.app import create_app
+    from fluid_server.config import ServerConfig
+    from fluid_server.utils.model_discovery import ModelDiscovery
 
 # Configure logging
 logging.basicConfig(
@@ -62,7 +69,7 @@ Examples:
     # Model selection
     parser.add_argument(
         "--llm-model",
-        default="gemma-3-4b-it-gguf",
+        default="unsloth/gemma-3-4b-it-GGUF/gemma-3-4b-it-Q4_K_M.gguf",
         help="LLM model to use (directory name in model-path/llm/)",
     )
     parser.add_argument(
@@ -80,6 +87,12 @@ Examples:
         type=int,
         default=5,
         help="Minutes before unloading idle models (0 to disable)",
+    )
+    parser.add_argument(
+        "--idle-check-interval",
+        type=int,
+        default=60,
+        help="Seconds between idle model checks (default: 60)",
     )
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     parser.add_argument(
@@ -102,6 +115,7 @@ Examples:
         whisper_model=args.whisper_model,
         warm_up=not args.no_warm_up,
         idle_timeout_minutes=args.idle_timeout,
+        idle_check_interval_seconds=args.idle_check_interval,
     )
 
     # Validate that model path exists - create if missing instead of exiting

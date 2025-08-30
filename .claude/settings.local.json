@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Read(C:\\Users\\brand\\code\\windows\\Services/**)",
+      "Bash(uv run:*)",
+      "Bash(python:*)",
+      "Bash(/bashes)",
+      "Bash(taskkill:*)",
+      "Bash(uv add:*)",
+      "Bash(.scriptsbuild.ps1)",
+      "Bash(del test_idle_functionality.py)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": [],

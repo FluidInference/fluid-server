@@ -199,6 +199,22 @@ class LlamaCppRuntime(BaseRuntime):
         self, prompt: str, max_tokens: int, temperature: float, top_p: float, token_queue: asyncio.Queue, loop: asyncio.AbstractEventLoop
     ) -> None:
         """Synchronous streaming generation for use in executor - now uses queue"""
+        pending_futures = []
+        
+        def _safe_queue_put(item, timeout=1.0):
+            """Safely put item in queue and wait for completion"""
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    token_queue.put(item), loop
+                )
+                pending_futures.append(future)
+                # Wait for the put operation to complete
+                future.result(timeout=timeout)
+                return True
+            except Exception as e:
+                logger.error(f"Failed to send item to queue: {e}")
+                return False
+        
         try:
             with self.model_lock:
                 if self.llama is None:
@@ -222,24 +238,27 @@ class LlamaCppRuntime(BaseRuntime):
                     if isinstance(output, dict) and "choices" in output:
                         token = output["choices"][0]["text"]
                         if token:  # Only send non-empty tokens
-                            try:
-                                asyncio.run_coroutine_threadsafe(
-                                    token_queue.put(token), loop
-                                )
-                            except Exception as e:
-                                logger.error(f"Failed to send token to queue: {e}")
-                                break
+                            if not _safe_queue_put(token):
+                                break  # Stop on queue error
+                                
         except Exception as e:
             # Signal completion/error by sending None
-            asyncio.run_coroutine_threadsafe(
-                token_queue.put(None), loop
-            )
+            _safe_queue_put(None)
             raise
         finally:
+            # Cancel any pending futures
+            for future in pending_futures:
+                if not future.done():
+                    future.cancel()
+            
             # Signal completion by sending None
-            asyncio.run_coroutine_threadsafe(
-                token_queue.put(None), loop
-            )
+            try:
+                completion_future = asyncio.run_coroutine_threadsafe(
+                    token_queue.put(None), loop
+                )
+                completion_future.result(timeout=1.0)
+            except Exception as e:
+                logger.error(f"Failed to send completion signal: {e}")
 
     async def generate_stream(
         self, prompt: str, max_tokens: int, temperature: float, top_p: float

@@ -202,7 +202,7 @@ class RuntimeManager:
         # If the same model is already loaded, return it
         if self.llm_runtime is not None and self.loaded_llm_model == model_to_load:
             logger.debug(f"LLM model '{model_to_load}' already loaded")
-            self.llm_runtime.last_used = time.time()  # Update last used
+            self.llm_runtime.update_last_used()  # Update last used
             # Update legacy compatibility
             self.current_runtime = self.llm_runtime
             self.current_model_name = model_to_load
@@ -296,7 +296,7 @@ class RuntimeManager:
         # If the same Whisper model is already loaded, return it
         if self.whisper_runtime is not None and self.loaded_whisper_model == model_to_load:
             logger.debug(f"Whisper model '{model_to_load}' already loaded")
-            self.whisper_runtime.last_used = time.time()  # Update last used
+            self.whisper_runtime.update_last_used()  # Update last used
             # Update legacy compatibility
             self.current_runtime = self.whisper_runtime
             self.current_model_name = model_to_load
@@ -390,7 +390,7 @@ class RuntimeManager:
 
         # Update last used time
         if self.llm_runtime:
-            self.llm_runtime.last_used = time.time()
+            self.llm_runtime.update_last_used()
 
         return self.llm_runtime
 
@@ -406,7 +406,7 @@ class RuntimeManager:
 
         # Update last used time
         if self.whisper_runtime:
-            self.whisper_runtime.last_used = time.time()
+            self.whisper_runtime.update_last_used()
 
         return self.whisper_runtime
 
@@ -422,8 +422,8 @@ class RuntimeManager:
             """Monitor and cleanup idle model"""
             while True:
                 try:
-                    # Check every minute for idle model
-                    await asyncio.sleep(60)
+                    # Check at the configured interval for idle models
+                    await asyncio.sleep(self.config.idle_check_interval_seconds)
 
                     if self.llm_runtime is None and self.whisper_runtime is None:
                         continue
@@ -432,8 +432,8 @@ class RuntimeManager:
                     idle_threshold = self.config.idle_timeout_minutes * 60
 
                     # Check if LLM model is idle
-                    if self.llm_runtime is not None and hasattr(self.llm_runtime, "last_used"):
-                        idle_time = current_time - self.llm_runtime.last_used
+                    if self.llm_runtime is not None:
+                        idle_time = self.llm_runtime.get_idle_time()
                         if idle_time >= idle_threshold:
                             logger.info(
                                 f"Unloading idle LLM model '{self.loaded_llm_model}' (idle for {idle_time / 60:.1f} minutes)"
@@ -443,14 +443,14 @@ class RuntimeManager:
                                 self.llm_runtime = None
                                 self.loaded_llm_model = None
                                 logger.info("LLM model unloaded due to inactivity")
+                                # Force memory cleanup after unloading
+                                await self._cleanup_memory()
                             except Exception as e:
                                 logger.error(f"Failed to unload LLM model: {e}")
 
                     # Check if Whisper model is idle
-                    if self.whisper_runtime is not None and hasattr(
-                        self.whisper_runtime, "last_used"
-                    ):
-                        idle_time = current_time - self.whisper_runtime.last_used
+                    if self.whisper_runtime is not None:
+                        idle_time = self.whisper_runtime.get_idle_time()
                         if idle_time >= idle_threshold:
                             logger.info(
                                 f"Unloading idle Whisper model '{self.loaded_whisper_model}' (idle for {idle_time / 60:.1f} minutes)"
@@ -460,6 +460,8 @@ class RuntimeManager:
                                 self.whisper_runtime = None
                                 self.loaded_whisper_model = None
                                 logger.info("Whisper model unloaded due to inactivity")
+                                # Force memory cleanup after unloading
+                                await self._cleanup_memory()
                             except Exception as e:
                                 logger.error(f"Failed to unload Whisper model: {e}")
 
@@ -467,11 +469,7 @@ class RuntimeManager:
                     if self.llm_runtime is None and self.whisper_runtime is None:
                         self.current_runtime = None
                         self.current_model_name = None
-                        # Force garbage collection
-                        import gc
-
-                        gc.collect()
-                        logger.info("All models unloaded, memory freed")
+                        logger.info("All models unloaded")
 
                 except asyncio.CancelledError:
                     break
@@ -479,6 +477,32 @@ class RuntimeManager:
                     logger.error(f"Error in idle cleanup: {e}")
 
         self._idle_task = asyncio.create_task(cleanup_idle_model())
+
+    async def _cleanup_memory(self) -> None:
+        """Force cleanup of memory after model unloading"""
+        import gc
+        
+        # Force garbage collection
+        gc.collect()
+        
+        # Try to clear CUDA cache if available
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                logger.debug("CUDA cache cleared")
+        except ImportError:
+            pass
+        
+        # Try to clear OpenVINO cache if possible
+        try:
+            import openvino as ov
+            # OpenVINO doesn't have explicit cache clearing, but garbage collection helps
+            logger.debug("OpenVINO memory cleanup attempted")
+        except ImportError:
+            pass
+        
+        logger.debug("Memory cleanup completed")
 
     async def unload_all(self) -> None:
         """Unload all models"""
@@ -519,19 +543,26 @@ class RuntimeManager:
                 "llm_model": self.config.llm_model,
                 "whisper_model": self.config.whisper_model,
                 "idle_timeout_minutes": self.config.idle_timeout_minutes,
+                "idle_check_interval_seconds": self.config.idle_check_interval_seconds,
             },
         }
 
         if self.llm_runtime is not None:
+            idle_time_seconds = self.llm_runtime.get_idle_time()
             status["loaded_models"]["llm"] = {
                 "name": self.loaded_llm_model,
                 "info": self.llm_runtime.get_info(),
+                "idle_time_seconds": round(idle_time_seconds, 1),
+                "idle_time_minutes": round(idle_time_seconds / 60, 1),
             }
 
         if self.whisper_runtime is not None:
+            idle_time_seconds = self.whisper_runtime.get_idle_time()
             status["loaded_models"]["whisper"] = {
                 "name": self.loaded_whisper_model,
                 "info": self.whisper_runtime.get_info(),
+                "idle_time_seconds": round(idle_time_seconds, 1),
+                "idle_time_minutes": round(idle_time_seconds / 60, 1),
             }
 
         return status

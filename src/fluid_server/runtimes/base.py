@@ -2,6 +2,7 @@
 Base runtime class for all AI model backends
 """
 
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ class BaseRuntime(ABC):
         self.cache_dir = cache_dir
         self.device = device
         self.is_loaded = False
+        self.last_used = time.time()  # Track when the runtime was last used
 
     @abstractmethod
     async def load(self) -> None:
@@ -38,6 +40,14 @@ class BaseRuntime(ABC):
     def get_info(self) -> dict[str, Any]:
         """Get runtime and model information"""
         pass
+
+    def update_last_used(self) -> None:
+        """Update the last used timestamp"""
+        self.last_used = time.time()
+
+    def get_idle_time(self) -> float:
+        """Get how long the runtime has been idle in seconds"""
+        return time.time() - self.last_used
 
     async def transcribe(
         self, audio_data: bytes, language: str | None = None, return_timestamps: bool = True
