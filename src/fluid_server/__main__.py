@@ -109,7 +109,7 @@ Examples:
     config = ServerConfig(
         host=args.host,
         port=args.port,
-        model_path=args.model_path.resolve(),  # Resolve to absolute path
+        model_path=args.model_path.resolve(), 
         cache_dir=args.cache_dir.resolve() if args.cache_dir else None,
         llm_model=args.llm_model,
         whisper_model=args.whisper_model,
