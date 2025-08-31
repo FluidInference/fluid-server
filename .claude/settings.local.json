@@ -11,7 +11,8 @@
       "Bash(uv add:*)",
       "Bash(.scriptsbuild.ps1)",
       "Bash(del test_idle_functionality.py)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(.distfluid-server.exe --help)"
     ],
     "deny": [],
     "ask": [],
