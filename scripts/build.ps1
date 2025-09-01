@@ -66,7 +66,7 @@ uv add --dev pyinstaller
 Write-Host "`nBuilding executable with PyInstaller for $archName..." -ForegroundColor Yellow
 
 # Run PyInstaller using the spec file (builds for current architecture)
-uv run pyinstaller fluid-server.spec --noconfirm --clean --log-level=INFO
+uv run pyinstaller fluid-server.spec --noconfirm --clean --clean-temp --log-level=INFO
 
 # Check PyInstaller exit code
 if ($LASTEXITCODE -ne 0) {
