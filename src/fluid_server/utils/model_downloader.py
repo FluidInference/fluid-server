@@ -17,7 +17,7 @@ DEFAULT_MODEL_REPOS = {
         "qwen3-4b-int8-ov": "FluidInference/Qwen3-4B-int8-ov",
         "phi-4-mini": "FluidInference/phi-4-mini-instruct-int4-ov-npu",
         "gemma-3-4b-it-gguf": "ggml-org/gemma-3-4b-it-GGUF",
-        "gemma-3-4b-it-qat-GGUF": "unsloth/gemma-3-4b-it-qat-GGUF",
+        "gemma-3-4b-it-qat-GGUF": "unsloth/gemma-3-4b-it-qat-GGUF"
     },
     "whisper": {
         "whisper-tiny": "FluidInference/whisper-tiny-int4-ov-npu",

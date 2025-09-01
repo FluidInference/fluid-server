@@ -3,11 +3,8 @@ Entry point for fluid_server module
 """
 
 import argparse
-import atexit
 import logging
-import os
 import sys
-import tempfile
 from pathlib import Path
 
 import uvicorn
@@ -28,136 +25,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-def cleanup_pyinstaller_temp():
-    """Clean up old PyInstaller temp directories on startup (safe version)"""
-    if not getattr(sys, "frozen", False):
-        return
-    
-    try:
-        import shutil
-        import time
-        
-        temp_dir = Path(tempfile.gettempdir())
-        current_mei_path = getattr(sys, '_MEIPASS', None)
-        
-        logger.debug(f"Checking for PyInstaller temp dirs in: {temp_dir}")
-        if current_mei_path:
-            logger.debug(f"Current MEI path: {current_mei_path}")
-        
-        # Find old _MEI directories with safety checks
-        cleaned_count = 0
-        skipped_count = 0
-        
-        for item in temp_dir.iterdir():
-            if not item.is_dir() or not item.name.startswith("_MEI"):
-                continue
-                
-            try:
-                # Safety check 1: Skip current running app's temp dir
-                if current_mei_path and item.samefile(current_mei_path):
-                    logger.debug(f"Skipping current MEI directory: {item}")
-                    skipped_count += 1
-                    continue
-                
-                # Safety check 2: Only clean directories older than 1 hour
-                dir_age_hours = (time.time() - item.stat().st_mtime) / 3600
-                if dir_age_hours < 1:
-                    logger.debug(f"Skipping recent MEI directory: {item} (age: {dir_age_hours:.1f}h)")
-                    skipped_count += 1
-                    continue
-                
-                # Safety check 3: Verify it's a PyInstaller directory by looking for typical files
-                if not _is_pyinstaller_directory(item):
-                    logger.debug(f"Skipping non-PyInstaller directory: {item}")
-                    skipped_count += 1
-                    continue
-                
-                # Attempt removal
-                shutil.rmtree(item, ignore_errors=False)
-                logger.debug(f"Cleaned up old PyInstaller temp dir: {item} (age: {dir_age_hours:.1f}h)")
-                cleaned_count += 1
-                
-            except PermissionError as e:
-                logger.debug(f"Permission denied cleaning {item}: {e} (likely in use)")
-                skipped_count += 1
-            except FileNotFoundError:
-                # Directory was already removed, ignore
-                pass
-            except Exception as e:
-                logger.debug(f"Could not clean temp dir {item}: {e}")
-                skipped_count += 1
-                
-        if cleaned_count > 0:
-            logger.info(f"Cleaned up {cleaned_count} old PyInstaller temp directories")
-        if skipped_count > 0:
-            logger.debug(f"Skipped {skipped_count} directories (current/recent/in-use)")
-            
-    except Exception as e:
-        logger.debug(f"Error during temp cleanup: {e}")
-
-
-def _is_pyinstaller_directory(directory: Path) -> bool:
-    """Verify this is actually a PyInstaller extraction directory"""
-    try:
-        # PyInstaller directories typically contain these patterns:
-        # - Python runtime files (python*.dll on Windows)
-        # - PyInstaller bootloader artifacts
-        # - Application files
-        
-        files = list(directory.iterdir())
-        if len(files) < 5:  # Too few files to be PyInstaller
-            return False
-            
-        # Look for typical PyInstaller indicators
-        has_python_files = any(
-            f.name.lower().startswith(('python', 'py')) and f.name.lower().endswith(('.dll', '.so'))
-            for f in files if f.is_file()
-        )
-        
-        # Look for PyInstaller-specific files
-        has_pyi_files = any(
-            f.name in ('base_library.zip', 'pyi_rth_pkgres.py', 'pyi_rth_multiprocessing.py')
-            for f in files if f.is_file()
-        )
-        
-        return has_python_files or has_pyi_files
-        
-    except Exception:
-        return False  # If we can't verify, don't clean it
-
-
-def register_cleanup_handlers():
-    """Register cleanup handlers for graceful shutdown"""
-    if not getattr(sys, "frozen", False):
-        return
-    
-    def cleanup_on_exit():
-        """Final cleanup on exit"""
-        try:
-            # Force garbage collection
-            import gc
-            gc.collect()
-            logger.debug("Exit cleanup completed")
-        except Exception as e:
-            logger.debug(f"Error in exit cleanup: {e}")
-    
-    # Register cleanup handlers
-    atexit.register(cleanup_on_exit)
-    
-    # Handle Windows signals
-    try:
-        import signal
-        def signal_handler(signum, frame):
-            logger.info(f"Received signal {signum}, shutting down...")
-            cleanup_on_exit()
-            sys.exit(0)
-        
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
-    except Exception as e:
-        logger.debug(f"Could not register signal handlers: {e}")
 
 
 def main() -> None:
@@ -237,10 +104,6 @@ Examples:
 
     # Parse arguments
     args = parser.parse_args()
-
-    # Clean up PyInstaller temp files and register cleanup handlers
-    cleanup_pyinstaller_temp()
-    register_cleanup_handlers()
 
     # Create configuration
     config = ServerConfig(

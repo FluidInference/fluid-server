@@ -55,11 +55,6 @@ hiddenimports = [
     'llama_cpp',
     'llama_cpp.llama_cpp',
     'llama_cpp._internals',
-    'llama_cpp.llama_chat_format',
-    'PIL',
-    'PIL.Image',
-    'requests',
-    'huggingface_hub',
 ]
 
 for pkg in ['openvino', 'openvino_genai', 'openvino_tokenizers', 'librosa', 'scipy', 'soundfile', 'llama_cpp']:

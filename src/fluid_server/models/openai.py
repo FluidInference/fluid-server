@@ -4,28 +4,9 @@ OpenAI-compatible API models with full type hints
 
 import time
 import uuid
-from typing import Any, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
-
-
-# ============== Multimodal Content Models ==============
-class TextContent(BaseModel):
-    """Text content block in a chat message"""
-    
-    type: str = Field("text", description="Content type (always 'text')")
-    text: str = Field(..., description="The text content")
-
-
-class ImageUrlContent(BaseModel):
-    """Image URL content block in a chat message"""
-    
-    type: str = Field("image_url", description="Content type (always 'image_url')")
-    image_url: dict[str, str] = Field(..., description="Image URL object containing 'url' field")
-
-
-# Union type for content blocks
-ContentBlock = Union[TextContent, ImageUrlContent]
 
 
 # ============== Chat Completion Models ==============
@@ -33,7 +14,7 @@ class ChatMessage(BaseModel):
     """Chat message in a conversation"""
 
     role: str = Field(..., description="The role of the message author (system, user, assistant)")
-    content: Union[str, list[ContentBlock]] = Field(..., description="The content of the message (string or array of content blocks)")
+    content: str = Field(..., description="The content of the message")
     name: str | None = Field(None, description="Optional name of the message author")
 
 

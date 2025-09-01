@@ -147,14 +147,10 @@ class OpenVINOLLMRuntime(BaseRuntime):
                 logger.error(f"Generation failed: {e}")
                 raise
 
-    async def generate(self, prompt: str, max_tokens: int, temperature: float, top_p: float, images: list[str] | None = None) -> str:
+    async def generate(self, prompt: str, max_tokens: int, temperature: float, top_p: float) -> str:
         """Generate text completion"""
         if not self.is_loaded:
             await self.load()
-
-        # Images not supported in OpenVINO LLM runtime
-        if images:
-            logger.warning("Images passed to OpenVINO LLM runtime but not supported - ignoring images")
 
         # Run generation in dedicated LLM executor to avoid blocking
         loop = asyncio.get_event_loop()
@@ -225,15 +221,11 @@ class OpenVINOLLMRuntime(BaseRuntime):
                 logger.error(f"Failed to send completion signal: {e}")
 
     async def generate_stream(
-        self, prompt: str, max_tokens: int, temperature: float, top_p: float, images: list[str] | None = None
+        self, prompt: str, max_tokens: int, temperature: float, top_p: float
     ) -> AsyncIterator[str]:
         """Stream text generation token by token using async queue"""
         if not self.is_loaded:
             await self.load()
-
-        # Images not supported in OpenVINO LLM runtime
-        if images:
-            logger.warning("Images passed to OpenVINO LLM runtime but not supported - ignoring images")
 
         # Create queue for token passing
         token_queue = asyncio.Queue(maxsize=100)  # Buffer up to 100 tokens

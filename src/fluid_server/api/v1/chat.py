@@ -20,9 +20,6 @@ from ...models.openai import (
     ChatCompletionStreamChoice,
     ChatCompletionStreamResponse,
     ChatMessage,
-    ContentBlock,
-    TextContent,
-    ImageUrlContent,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,13 +91,13 @@ async def chat_completions(
                 detail=f"Model '{completion_request.model}' is temporarily unavailable. Please try again later.",
             ) from e
 
-        # Build prompt from messages and extract images
-        prompt, images = _build_prompt_and_extract_images(completion_request.messages)
+        # Build prompt from messages
+        prompt = _build_prompt(completion_request.messages)
 
         # Handle streaming
         if completion_request.stream:
             return StreamingResponse(
-                _stream_chat_completion(llm, prompt, completion_request, request, images),
+                _stream_chat_completion(llm, prompt, completion_request, request),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -115,7 +112,6 @@ async def chat_completions(
             max_tokens=completion_request.max_tokens or 512,
             temperature=completion_request.temperature or 0.7,
             top_p=completion_request.top_p or 0.95,
-            images=images,
         )
 
         # Build response
@@ -143,58 +139,31 @@ async def chat_completions(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-def _build_prompt_and_extract_images(messages: list[ChatMessage]) -> tuple[str, list[str]]:
+def _build_prompt(messages: list[ChatMessage]) -> str:
     """
-    Build a prompt string from chat messages and extract images
+    Build a prompt string from chat messages
 
     Args:
         messages: List of chat messages
 
     Returns:
-        Tuple of (formatted prompt string, list of image URLs)
+        Formatted prompt string
     """
     prompt = ""
-    images = []
-    
     for msg in messages:
-        text_content = ""
-        
-        # Handle content as string or list of content blocks
-        if isinstance(msg.content, str):
-            text_content = msg.content
-        elif isinstance(msg.content, list):
-            # Process content blocks
-            for block in msg.content:
-                if isinstance(block, dict):
-                    # Handle dict format from JSON
-                    if block.get("type") == "text":
-                        text_content += block.get("text", "")
-                    elif block.get("type") == "image_url":
-                        image_url_obj = block.get("image_url", {})
-                        if "url" in image_url_obj:
-                            images.append(image_url_obj["url"])
-                elif hasattr(block, 'type'):
-                    # Handle Pydantic model format
-                    if isinstance(block, TextContent):
-                        text_content += block.text
-                    elif isinstance(block, ImageUrlContent):
-                        images.append(block.image_url["url"])
-        
-        # Add text content to prompt
-        if text_content:
-            if msg.role == "system":
-                prompt += f"System: {text_content}\n\n"
-            elif msg.role == "user":
-                prompt += f"User: {text_content}\n\n"
-            elif msg.role == "assistant":
-                prompt += f"Assistant: {text_content}\n\n"
+        if msg.role == "system":
+            prompt += f"System: {msg.content}\n\n"
+        elif msg.role == "user":
+            prompt += f"User: {msg.content}\n\n"
+        elif msg.role == "assistant":
+            prompt += f"Assistant: {msg.content}\n\n"
 
     prompt += "Assistant: "
-    return prompt, images
+    return prompt
 
 
 async def _stream_chat_completion(
-    llm, prompt: str, request: ChatCompletionRequest, http_request: Request, images: list[str] | None = None
+    llm, prompt: str, request: ChatCompletionRequest, http_request: Request
 ) -> AsyncIterator[str]:
     """
     Stream chat completion responses in SSE format with keepalive heartbeat and improved cancellation
@@ -239,7 +208,6 @@ async def _stream_chat_completion(
             max_tokens=request.max_tokens or 512,
             temperature=request.temperature or 0.7,
             top_p=request.top_p or 0.95,
-            images=images,
         )
         
         # Buffer for sentence-based streaming
