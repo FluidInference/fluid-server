@@ -1,14 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
+import platform
 
 datas = [('src\\fluid_server', 'fluid_server')]
 binaries = []
 hiddenimports = [
-    'openvino', 
-    'openvino_genai', 
-    'openvino_tokenizers', 
-    'openvino.runtime', 
-    'openvino.properties', 
     'uvicorn.logging', 
     'uvicorn.loops', 
     'uvicorn.loops.auto', 
@@ -45,19 +41,39 @@ hiddenimports = [
     '_soundfile_data', 
     'multiprocessing', 
     'asyncio',
-    'onnxruntime',
-    'onnxruntime.capi',
-    'onnxruntime.providers',
-    'whisper',
-    'whisper.decoding',
-    'whisper.audio',
-    'whisper.tokenizer',
     'llama_cpp',
     'llama_cpp.llama_cpp',
     'llama_cpp._internals',
 ]
 
-for pkg in ['openvino', 'openvino_genai', 'openvino_tokenizers', 'librosa', 'scipy', 'soundfile', 'llama_cpp', 'whisper', 'onnxruntime']:
+# Base packages for all architectures
+collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp']
+
+# Add x64-specific imports
+if platform.machine().lower() in ['x86_64', 'amd64']:
+    hiddenimports.extend([
+        'openvino', 
+        'openvino_genai', 
+        'openvino_tokenizers', 
+        'openvino.runtime', 
+        'openvino.properties',
+    ])
+    collect_packages.extend(['openvino', 'openvino_genai', 'openvino_tokenizers'])
+
+# Add ARM-specific imports
+if platform.machine().lower() in ['arm64', 'aarch64']:
+    hiddenimports.extend([
+        'onnxruntime',
+        'onnxruntime.capi',
+        'onnxruntime.providers',
+        'whisper',
+        'whisper.decoding',
+        'whisper.audio',
+        'whisper.tokenizer',
+    ])
+    collect_packages.extend(['whisper', 'onnxruntime'])
+
+for pkg in collect_packages:
     tmp_ret = collect_all(pkg)
     datas += tmp_ret[0]
     binaries += tmp_ret[1]
