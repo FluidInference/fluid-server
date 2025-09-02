@@ -391,10 +391,10 @@ class QNNWhisperRuntime(BaseRuntime):
                 chunk = audio_array[i:i + window_size]
                 
                 # Pad or trim chunk to exactly 30 seconds
-                chunk = whisper.pad_or_trim(chunk)
+                chunk = self.whisper.pad_or_trim(chunk)
                 
                 # Generate mel spectrogram with 128 bins for turbo model
-                mel = whisper.log_mel_spectrogram(chunk, n_mels=128).to("cpu")
+                mel = self.whisper.log_mel_spectrogram(chunk, n_mels=128).to("cpu")
                 
                 # Encode using QNN encoder
                 mel_batch = mel.unsqueeze(0).numpy().astype(np.float16)  # Shape: (1, 128, time_steps)
