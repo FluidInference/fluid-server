@@ -3,17 +3,25 @@
 
 Write-Host "=== Fluid Server PyInstaller Build ===" -ForegroundColor Cyan
 
-# Detect system architecture
-$arch = [System.Environment]::GetEnvironmentVariable("PROCESSOR_ARCHITECTURE")
-if ($arch -eq "ARM64") {
-    Write-Host "Detected ARM64 architecture" -ForegroundColor Green
+# Detect system architecture - use WMI for accurate detection
+$systemType = (Get-WmiObject -Class Win32_ComputerSystem).SystemType
+if ($systemType -eq "ARM64-based PC") {
+    Write-Host "Detected ARM64 architecture (Snapdragon/ARM processor)" -ForegroundColor Green
     $archName = "arm64"
-} elseif ($arch -eq "AMD64") {
-    Write-Host "Detected x64 (AMD64) architecture" -ForegroundColor Green
+} elseif ($systemType -eq "x64-based PC") {
+    Write-Host "Detected x64 (Intel/AMD) architecture" -ForegroundColor Green
     $archName = "x64"
 } else {
-    Write-Host "Detected architecture: $arch" -ForegroundColor Yellow
-    $archName = $arch.ToLower()
+    # Fallback to environment variable
+    $arch = [System.Environment]::GetEnvironmentVariable("PROCESSOR_ARCHITECTURE")
+    Write-Host "Detected architecture via env var: $arch" -ForegroundColor Yellow
+    if ($arch -eq "ARM64") {
+        $archName = "arm64"
+    } elseif ($arch -eq "AMD64") {
+        $archName = "x64"
+    } else {
+        $archName = $arch.ToLower()
+    }
 }
 
 Write-Host ""

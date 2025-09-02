@@ -136,3 +136,4 @@ Command-line arguments override configuration defaults. The server validates mod
 - **Model Management**: Use `RuntimeManager` for all model operations - it handles downloading, loading, and resource management
 - **Memory Optimization**: Prefer the dual runtime architecture over single model switching for production use
 - **Error Handling**: All runtimes implement graceful loading/unloading with proper resource cleanup
+- Check the system architecture before making assumptions. ARM we test QNN, x64 intel we test openvino
