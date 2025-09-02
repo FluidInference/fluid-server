@@ -14,7 +14,10 @@
       "Bash(powershell:*)",
       "Bash(.distfluid-server.exe --help)",
       "Bash(timeout:*)",
-      "Bash(dir C:Usersbrandsourcereposfluid-server-2tests)"
+      "Bash(dir C:Usersbrandsourcereposfluid-server-2tests)",
+      "Bash(dir:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv pip install:*)"
     ],
     "deny": [],
     "ask": [],
