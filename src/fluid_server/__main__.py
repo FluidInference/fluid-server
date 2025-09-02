@@ -11,11 +11,13 @@ import uvicorn
 
 try:
     # Try relative imports (development mode)
+    from .__version__ import __version__
     from .app import create_app
     from .config import ServerConfig
     from .utils.model_discovery import ModelDiscovery
 except ImportError:
     # Fallback to absolute imports (PyInstaller executable)
+    from fluid_server.__version__ import __version__
     from fluid_server.app import create_app
     from fluid_server.config import ServerConfig
     from fluid_server.utils.model_discovery import ModelDiscovery
@@ -29,6 +31,15 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     """Main entry point with command-line argument parsing"""
+
+    # Fix stdout/stderr for frozen executables
+    if getattr(sys, 'frozen', False):
+        import io
+        if sys.stdout is None:
+            sys.stdout = io.TextIOWrapper(io.BufferedWriter(io.BytesIO()), encoding='utf-8')
+        if sys.stderr is None:
+            sys.stderr = io.TextIOWrapper(io.BufferedWriter(io.BytesIO()), encoding='utf-8')
+
     parser = argparse.ArgumentParser(
         description="Fluid Server - OpenAI-compatible API with multiple model support",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -43,82 +54,121 @@ Examples:
   # Specify different LLM model
   %(prog)s --llm-model phi-4-mini
 
-  # Disable warm-up
-  %(prog)s --no-warm-up
+  # Disable warm-up and use custom log level
+  %(prog)s --no-warm-up --log-level DEBUG
+
+  # Use specific device
+  %(prog)s --device CPU
         """,
     )
 
-    # Server options
-    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=3847, help="Port to bind to (default: 3847)")
-
-    # Model paths - simple!
+    # Version
     parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
+
+    # Server configuration group
+    server_group = parser.add_argument_group("Server Configuration")
+    server_group.add_argument(
+        "--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)"
+    )
+    server_group.add_argument(
+        "--port", type=int, default=3847, help="Port to bind to (default: 3847)"
+    )
+    server_group.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of worker processes (default: 1, set to 2+ for concurrent processing)",
+    )
+    server_group.add_argument(
+        "--reload", action="store_true", help="Enable auto-reload for development"
+    )
+
+    # Logging group
+    log_group = parser.add_argument_group("Logging")
+    log_group.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Set logging level (default: INFO)",
+    )
+
+    # Model paths group
+    path_group = parser.add_argument_group("Model Paths")
+    path_group.add_argument(
         "--model-path",
         type=Path,
         default=Path("./models"),
         help="Base path containing model directories (llm/, whisper/, etc.)",
     )
-    parser.add_argument(
+    path_group.add_argument(
         "--cache-dir",
         type=Path,
         default=None,
         help="Cache directory for compiled models (default: model-path/cache)",
     )
 
-    # Model selection
-    parser.add_argument(
+    # Model selection group
+    model_group = parser.add_argument_group("Model Selection")
+    model_group.add_argument(
         "--llm-model",
         default="unsloth/gemma-3-4b-it-GGUF/gemma-3-4b-it-Q4_K_M.gguf",
         help="LLM model to use (directory name in model-path/llm/)",
     )
-    parser.add_argument(
+    model_group.add_argument(
         "--whisper-model",
         default="whisper-tiny",
         help="Whisper model to use (directory name in model-path/whisper/)",
     )
+    model_group.add_argument(
+        "--device",
+        choices=["AUTO", "CPU", "GPU", "NPU"],
+        default="AUTO",
+        help="Device to use for inference (default: AUTO)",
+    )
 
-    # Features
-    parser.add_argument(
+    # Performance tuning group
+    perf_group = parser.add_argument_group("Performance & Memory")
+    perf_group.add_argument(
         "--no-warm-up", action="store_true", help="Disable warm-up of models on startup"
     )
-    parser.add_argument(
+    perf_group.add_argument(
         "--idle-timeout",
         type=int,
         default=5,
         help="Minutes before unloading idle models (0 to disable)",
     )
-    parser.add_argument(
+    perf_group.add_argument(
         "--idle-check-interval",
         type=int,
         default=60,
         help="Seconds between idle model checks (default: 60)",
     )
-    parser.add_argument(
+    perf_group.add_argument(
         "--max-memory",
         type=float,
         default=4.0,
         help="Maximum memory usage in GB for models (default: 4.0)",
     )
-    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of worker processes (default: 1, set to 2+ for concurrent processing)",
-    )
 
     # Parse arguments
     args = parser.parse_args()
+
+    # Apply log level
+    log_level = getattr(logging, args.log_level)
+    logging.getLogger().setLevel(log_level)
+    logger.setLevel(log_level)
 
     # Create configuration
     config = ServerConfig(
         host=args.host,
         port=args.port,
-        model_path=args.model_path.resolve(), 
+        model_path=args.model_path.resolve(),
         cache_dir=args.cache_dir.resolve() if args.cache_dir else None,
         llm_model=args.llm_model,
         whisper_model=args.whisper_model,
+        device=args.device,
         warm_up=not args.no_warm_up,
         idle_timeout_minutes=args.idle_timeout,
         idle_check_interval_seconds=args.idle_check_interval,

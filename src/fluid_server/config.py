@@ -21,6 +21,7 @@ class ServerConfig:
     # Model selection
     llm_model: str = "qwen3-8b-int4-ov"  # Which LLM to load
     whisper_model: str = "whisper-large-v3-turbo-fp16-ov-npu"  # Which Whisper to load
+    device: str = "AUTO"  # Device for inference: AUTO, CPU, GPU, NPU
 
     # Features
     warm_up: bool = True  # Warm up models on startup

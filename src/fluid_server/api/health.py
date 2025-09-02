@@ -6,7 +6,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 
-from .. import __version__
+from ..__version__ import __version__
 from ..managers.runtime_manager import RuntimeManager
 from ..models.openai import HealthStatus
 

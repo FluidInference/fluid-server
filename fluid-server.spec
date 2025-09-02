@@ -46,11 +46,10 @@ hiddenimports = [
     'llama_cpp._internals',
 ]
 
-# Base packages for all architectures
-collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp']
-
-# Add x64-specific imports
+# Architecture-specific package collection
 if platform.machine().lower() in ['x86_64', 'amd64']:
+    # x64: Only include basic packages, skip OpenVINO collection to avoid torch issues
+    collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp']
     hiddenimports.extend([
         'openvino', 
         'openvino_genai', 
@@ -58,10 +57,9 @@ if platform.machine().lower() in ['x86_64', 'amd64']:
         'openvino.runtime', 
         'openvino.properties',
     ])
-    collect_packages.extend(['openvino', 'openvino_genai', 'openvino_tokenizers'])
-
-# Add ARM-specific imports
-if platform.machine().lower() in ['arm64', 'aarch64']:
+elif platform.machine().lower() in ['arm64', 'aarch64']:
+    # ARM64: Include ARM-specific packages
+    collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp', 'whisper', 'onnxruntime']
     hiddenimports.extend([
         'onnxruntime',
         'onnxruntime.capi',
@@ -71,8 +69,11 @@ if platform.machine().lower() in ['arm64', 'aarch64']:
         'whisper.audio',
         'whisper.tokenizer',
     ])
-    collect_packages.extend(['whisper', 'onnxruntime'])
+else:
+    # Default: basic packages only
+    collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp']
 
+# Collect packages normally
 for pkg in collect_packages:
     tmp_ret = collect_all(pkg)
     datas += tmp_ret[0]
@@ -88,7 +89,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['openvino.torch', 'openvino.frontend.pytorch'] + (['onnxruntime', 'whisper'] if platform.machine().lower() in ['x86_64', 'amd64'] else []),
     noarchive=False,
     optimize=0,
 )
