@@ -42,14 +42,30 @@ uv run python -m fluid_server --model-path ./models
 .\scripts\build.ps1
 ```
 
+### Linting and Formatting
+```powershell
+# Run code formatting and linting with ruff
+uv run ruff format .
+uv run ruff check .
+
+# Fix auto-fixable issues
+uv run ruff check --fix .
+```
+
 ### Testing
 ```powershell
 # Test the built executable
 .\scripts\test_exe.ps1
 
+# Test with actual models
+.\scripts\test_with_models.ps1
+
 # Manual testing endpoints
 curl http://localhost:8080/health
 curl http://localhost:8080/v1/models
+
+# Kill server if needed
+.\scripts\kill_server.ps1
 ```
 
 ## Architecture Overview
@@ -62,14 +78,17 @@ curl http://localhost:8080/v1/models
 - `__main__.py` - CLI entry point with argument parsing and uvicorn server startup
 
 **Runtime Management (`managers/`)**:
-- `RuntimeManager` - Central coordinator that loads/unloads models on-demand for memory efficiency
-- Supports single model in memory at a time with configurable idle timeout
-- Handles model discovery and validation on startup
+- `RuntimeManager` - Central coordinator supporting both LLM and Whisper models loaded simultaneously
+- Automatic model downloading via HuggingFace Hub with progress tracking
+- Background warm-up process for faster first requests
+- Idle cleanup with configurable timeout to manage memory usage
 
 **Model Runtimes (`runtimes/`)**:
-- `BaseRuntime` - Abstract base class for all model backends
+- `BaseRuntime` - Abstract base class with load/unload lifecycle and idle tracking
 - `OpenVINOLLMRuntime` - LLM inference using OpenVINO GenAI
 - `OpenVINOWhisperRuntime` - Audio transcription using OpenVINO Whisper models
+- `LlamaCppRuntime` - Alternative LLM backend using llama.cpp
+- `QNNWhisperRuntime` - ARM64-specific Whisper backend using Qualcomm Neural Network SDK
 
 **API Endpoints (`api/`)**:
 - `v1/chat.py` - OpenAI-compatible chat completions with streaming support
@@ -93,10 +112,12 @@ models/
 
 ### Key Design Patterns
 
-- **Single Model Runtime**: Only one model loaded at a time to optimize memory usage
-- **Warm-up by Default**: Models loaded on startup by default (disable with `--no-warm-up`)
+- **Dual Runtime Architecture**: Separate LLM and Whisper models can be loaded simultaneously for optimal performance
+- **Background Model Management**: Automatic downloading, warm-up, and idle cleanup with progress tracking
+- **Device-Specific Runtime Selection**: QNN backend automatically used on ARM64, OpenVINO/llama.cpp on other architectures
 - **OpenAI Compatibility**: Request/response formats match OpenAI API for drop-in replacement
 - **PyInstaller Ready**: Handles frozen executable detection for simplified deployment
+- **Graceful Degradation**: Falls back to alternative runtimes if primary backend unavailable
 
 ### Configuration
 
@@ -107,3 +128,11 @@ Server behavior controlled via `ServerConfig` dataclass:
 - Feature flags (warm_up, idle cleanup)
 
 Command-line arguments override configuration defaults. The server validates model availability on startup and provides informative warnings for missing models.
+
+## Important Development Notes
+
+- **Python Version**: Project requires exactly Python 3.10 (`==3.10.*`)
+- **Architecture Support**: QNN backend only available on ARM64 with conditional imports to prevent PyInstaller issues
+- **Model Management**: Use `RuntimeManager` for all model operations - it handles downloading, loading, and resource management
+- **Memory Optimization**: Prefer the dual runtime architecture over single model switching for production use
+- **Error Handling**: All runtimes implement graceful loading/unloading with proper resource cleanup

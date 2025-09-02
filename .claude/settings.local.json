@@ -13,7 +13,8 @@
       "Bash(del test_idle_functionality.py)",
       "Bash(powershell:*)",
       "Bash(.distfluid-server.exe --help)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(dir C:Usersbrandsourcereposfluid-server-2tests)"
     ],
     "deny": [],
     "ask": [],
