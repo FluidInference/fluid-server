@@ -63,8 +63,18 @@ class LlamaCppRuntime(BaseRuntime):
             logger.info(f"Repo: {repo_id}, File: {gguf_filename}")
             logger.info(f"Cache dir: {self.model_path} | Device: {self.device} (Vulkan backend)")
 
-            # Configure for Vulkan backend
-            n_gpu_layers = -1 if self.device == "GPU" else 0
+            # Configure GPU layers (following llama.cpp server patterns)
+            if self.device == "GPU":
+                # Use 99 layers for full GPU offloading (like llama.cpp server default)
+                # Vulkan backend handles memory management well
+                n_gpu_layers = 99
+                logger.info(f"Using {n_gpu_layers} GPU layers for Vulkan backend")
+            else:
+                # CPU-only mode
+                n_gpu_layers = 0
+            
+            # Use 0 to auto-detect context size from GGUF metadata (same as llama.cpp server)
+            n_ctx = 0
 
             # Use llama-cpp's from_pretrained for all GGUF models
             if gguf_filename:
@@ -77,7 +87,7 @@ class LlamaCppRuntime(BaseRuntime):
                     # Allow resume; callers can set HF_HUB_ENABLE_HF_TRANSFER/HF_TOKEN via env if needed
                     resume_download=True,
                     # Generation params
-                    n_ctx=12288,
+                    n_ctx=n_ctx,
                     n_batch=512,
                     n_gpu_layers=n_gpu_layers,
                     verbose=False,
@@ -91,7 +101,7 @@ class LlamaCppRuntime(BaseRuntime):
                     # Allow resume; callers can set HF_HUB_ENABLE_HF_TRANSFER/HF_TOKEN via env if needed
                     resume_download=True,
                     # Generation params
-                    n_ctx=12288,
+                    n_ctx=n_ctx,
                     n_batch=512,
                     n_gpu_layers=n_gpu_layers,
                     verbose=False,
