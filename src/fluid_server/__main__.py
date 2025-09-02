@@ -94,6 +94,12 @@ Examples:
         default=60,
         help="Seconds between idle model checks (default: 60)",
     )
+    parser.add_argument(
+        "--max-memory",
+        type=float,
+        default=4.0,
+        help="Maximum memory usage in GB for models (default: 4.0)",
+    )
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     parser.add_argument(
         "--workers",
@@ -116,6 +122,7 @@ Examples:
         warm_up=not args.no_warm_up,
         idle_timeout_minutes=args.idle_timeout,
         idle_check_interval_seconds=args.idle_check_interval,
+        max_memory_gb=args.max_memory,
     )
 
     # Validate that model path exists - create if missing instead of exiting

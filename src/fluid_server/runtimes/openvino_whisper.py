@@ -39,13 +39,14 @@ class OpenVINOWhisperRuntime(BaseRuntime):
             cls._whisper_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="Whisper")
         return cls._whisper_executor
 
-    def __init__(self, model_path: Path, cache_dir: Path, device: str) -> None:
+    def __init__(self, model_path: Path, cache_dir: Path, device: str, max_memory_gb: float = 4.0) -> None:
         super().__init__(model_path, cache_dir, device)
         self.pipeline: Any | None = None
         self.last_used = time.time()
         self._load_lock = asyncio.Lock()
         self._model_id = "FluidInference/whisper-large-v3-turbo-fp16-ov-npu"
         self._repetition_penalty = 1.5
+        self.max_memory_gb = max_memory_gb
 
         # Create model-specific cache directory
         self.model_cache_dir = self.cache_dir / "whisper" / self.model_name
@@ -80,6 +81,7 @@ class OpenVINOWhisperRuntime(BaseRuntime):
                 self.ov_genai = ov_genai
 
                 logger.info(f"Creating WhisperPipeline (Device: {self.device})")
+                logger.info(f"Memory limit: {self.max_memory_gb} GB")
                 start_time = time.time()
 
                 try:

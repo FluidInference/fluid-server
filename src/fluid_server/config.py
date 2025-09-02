@@ -24,7 +24,7 @@ class ServerConfig:
 
     # Features
     warm_up: bool = True  # Warm up models on startup
-    max_memory_gb: float = 8.0  # Memory limit
+    max_memory_gb: float = 4.0  # Memory limit
     idle_timeout_minutes: int = 5  # Idle timeout for unloading
     idle_check_interval_seconds: int = 60  # How often to check for idle models
 

@@ -6,7 +6,6 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -26,17 +25,6 @@ logger = logging.getLogger(__name__)
 class LlamaCppRuntime(BaseRuntime):
     """llama-cpp runtime for GGUF LLM models using Vulkan backend"""
 
-    # Class-level dedicated thread pool for LlamaCpp operations
-    _llamacpp_executor: ThreadPoolExecutor | None = None
-
-    @classmethod
-    def get_executor(cls) -> ThreadPoolExecutor:
-        """Get or create dedicated LlamaCpp thread pool"""
-        if cls._llamacpp_executor is None:
-            cls._llamacpp_executor = ThreadPoolExecutor(
-                max_workers=2, thread_name_prefix="LlamaCpp"
-            )
-        return cls._llamacpp_executor
 
     def __init__(self, model_path: Path, cache_dir: Path, device: str, model_name: str) -> None:
         super().__init__(model_path, cache_dir, device)
@@ -89,7 +77,7 @@ class LlamaCppRuntime(BaseRuntime):
                     # Allow resume; callers can set HF_HUB_ENABLE_HF_TRANSFER/HF_TOKEN via env if needed
                     resume_download=True,
                     # Generation params
-                    n_ctx=4096,
+                    n_ctx=12288,
                     n_batch=512,
                     n_gpu_layers=n_gpu_layers,
                     verbose=False,
@@ -103,7 +91,7 @@ class LlamaCppRuntime(BaseRuntime):
                     # Allow resume; callers can set HF_HUB_ENABLE_HF_TRANSFER/HF_TOKEN via env if needed
                     resume_download=True,
                     # Generation params
-                    n_ctx=4096,
+                    n_ctx=12288,
                     n_batch=512,
                     n_gpu_layers=n_gpu_layers,
                     verbose=False,
@@ -187,35 +175,22 @@ class LlamaCppRuntime(BaseRuntime):
         if not self.is_loaded:
             await self.load()
 
-        # Run generation in dedicated executor to avoid blocking
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            self.get_executor(), self._generate_sync, prompt, max_tokens, temperature, top_p
+        # Run generation in thread to avoid blocking
+        result = await asyncio.to_thread(
+            self._generate_sync, prompt, max_tokens, temperature, top_p
         )
 
         return result
 
-    def generate_stream_sync(
-        self, prompt: str, max_tokens: int, temperature: float, top_p: float, token_queue: asyncio.Queue, loop: asyncio.AbstractEventLoop
-    ) -> None:
-        """Synchronous streaming generation for use in executor - now uses queue"""
-        pending_futures = []
-        
-        def _safe_queue_put(item, timeout=1.0):
-            """Safely put item in queue and wait for completion"""
-            try:
-                future = asyncio.run_coroutine_threadsafe(
-                    token_queue.put(item), loop
-                )
-                pending_futures.append(future)
-                # Wait for the put operation to complete
-                future.result(timeout=timeout)
-                return True
-            except Exception as e:
-                logger.error(f"Failed to send item to queue: {e}")
-                return False
-        
-        try:
+    async def generate_stream(
+        self, prompt: str, max_tokens: int, temperature: float, top_p: float
+    ) -> AsyncIterator[str]:
+        """Stream text generation token by token"""
+        if not self.is_loaded:
+            await self.load()
+
+        # Create synchronous generator function
+        def sync_stream():
             with self.model_lock:
                 if self.llama is None:
                     raise RuntimeError("Model not initialized")
@@ -233,83 +208,18 @@ class LlamaCppRuntime(BaseRuntime):
                     stream=True,
                 )
 
-                # Send tokens to queue as they're generated
+                # Yield tokens as they're generated
                 for output in stream:
                     if isinstance(output, dict) and "choices" in output:
                         token = output["choices"][0]["text"]
-                        if token:  # Only send non-empty tokens
-                            if not _safe_queue_put(token):
-                                break  # Stop on queue error
-                                
-        except Exception as e:
-            # Signal completion/error by sending None
-            _safe_queue_put(None)
-            raise
-        finally:
-            # Cancel any pending futures
-            for future in pending_futures:
-                if not future.done():
-                    future.cancel()
-            
-            # Signal completion by sending None
-            try:
-                completion_future = asyncio.run_coroutine_threadsafe(
-                    token_queue.put(None), loop
-                )
-                completion_future.result(timeout=1.0)
-            except Exception as e:
-                logger.error(f"Failed to send completion signal: {e}")
-
-    async def generate_stream(
-        self, prompt: str, max_tokens: int, temperature: float, top_p: float
-    ) -> AsyncIterator[str]:
-        """Stream text generation token by token using async queue"""
-        if not self.is_loaded:
-            await self.load()
-
-        # Create queue for token passing
-        token_queue = asyncio.Queue(maxsize=100)  # Buffer up to 100 tokens
-        loop = asyncio.get_event_loop()
+                        if token:  # Only yield non-empty tokens
+                            yield token
 
         try:
-            # Start synchronous generation in dedicated executor
-            task = loop.run_in_executor(
-                self.get_executor(),
-                self.generate_stream_sync,
-                prompt,
-                max_tokens,
-                temperature,
-                top_p,
-                token_queue,
-                loop,
-            )
-
-            # Yield tokens as they become available
-            while True:
-                try:
-                    # Get token with timeout to handle hung generators
-                    token = await asyncio.wait_for(token_queue.get(), timeout=30.0)
-                    
-                    if token is None:  # End of stream signal
-                        break
-                        
-                    yield token
-                    await asyncio.sleep(0)  # Allow other async operations
-                    
-                except asyncio.TimeoutError:
-                    logger.warning("Token generation timeout - ending stream")
-                    break
-                except Exception as e:
-                    logger.error(f"Error receiving token: {e}")
-                    break
-
-            # Ensure the executor task completes
-            try:
-                await asyncio.wait_for(task, timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("Generator task did not complete cleanly")
-            except Exception as e:
-                logger.error(f"Generator task error: {e}")
+            # Iterate through the synchronous generator
+            for token in sync_stream():
+                yield token
+                await asyncio.sleep(0)  # Allow other async operations
 
         except Exception as e:
             logger.error(f"Stream generation failed: {e}")

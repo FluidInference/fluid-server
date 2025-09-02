@@ -266,6 +266,7 @@ class RuntimeManager:
                     model_path=model_path,
                     cache_dir=self.config.cache_dir or self.config.model_path / "cache",
                     device="GPU",
+                    max_memory_gb=self.config.max_memory_gb,
                 )
             await runtime.load()
             return runtime
@@ -344,6 +345,7 @@ class RuntimeManager:
                         model_path=model_path,
                         cache_dir=self.config.cache_dir or self.config.model_path / "cache",
                         device="NPU",
+                        max_memory_gb=self.config.max_memory_gb,
                     )
                 else:
                     runtime = QNNWhisperRuntime(
@@ -356,6 +358,7 @@ class RuntimeManager:
                     model_path=model_path,
                     cache_dir=self.config.cache_dir or self.config.model_path / "cache",
                     device="NPU",
+                    max_memory_gb=self.config.max_memory_gb,
                 )
             await runtime.load()
             return runtime

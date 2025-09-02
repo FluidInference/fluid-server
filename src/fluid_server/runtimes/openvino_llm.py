@@ -29,11 +29,12 @@ class OpenVINOLLMRuntime(BaseRuntime):
             cls._llm_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="LLM")
         return cls._llm_executor
 
-    def __init__(self, model_path: Path, cache_dir: Path, device: str) -> None:
+    def __init__(self, model_path: Path, cache_dir: Path, device: str, max_memory_gb: float = 4.0) -> None:
         super().__init__(model_path, cache_dir, device)
         self.pipeline: Any | None = None
         self.pipeline_lock = Lock()
         self.last_used = time.time()
+        self.max_memory_gb = max_memory_gb
 
     async def load(self) -> None:
         """Load the LLM model"""
@@ -63,6 +64,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
             logger.info(f"Loading LLM '{self.model_name}' from {self.model_path}")
             logger.info(f"Using cache at {model_cache}")
             logger.info(f"Device: {self.device}")
+            logger.info(f"Memory limit: {self.max_memory_gb} GB")
 
             start_time = time.time()
 
@@ -79,7 +81,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
             scheduler_config = self.ov_genai.SchedulerConfig()
             scheduler_config.enable_prefix_caching = False
             scheduler_config.num_kv_blocks = 1024
-            scheduler_config.cache_size = 5  # GB
+            scheduler_config.cache_size = self.max_memory_gb  # Use configured memory limit
             scheduler_config.use_cache_eviction = True
 
             # Configure cache eviction
