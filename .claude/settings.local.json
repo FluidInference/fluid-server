@@ -22,9 +22,5 @@
     ],
     "deny": [],
     "ask": [],
-    "additionalDirectories": [
-      "C:\\Users\\brand\\AppData\\Local\\Slipbox\\Models\\cache\\llm\\qwen3-8b-int8-ov",
-      "C:\\Users\\brand"
-    ]
   }
 }
