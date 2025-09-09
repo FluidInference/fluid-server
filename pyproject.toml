@@ -22,6 +22,9 @@ dependencies = [
     "onnxruntime-qnn==1.22.0",
     "openai-whisper>=20231117",
     "llama-cpp-python>=0.3.0",
+    "lancedb>=0.14.0",
+    "sentence-transformers>=2.2.0",
+    "pillow>=10.0.0",
 ]
 
 [tool.uv]

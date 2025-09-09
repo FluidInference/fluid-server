@@ -9,6 +9,8 @@ venv/
 .venv/
 .env
 
+data/
+
 # PyInstaller
 build/
 dist/

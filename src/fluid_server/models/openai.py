@@ -126,3 +126,131 @@ class HealthStatus(BaseModel):
     memory_usage_gb: float | None = Field(None, description="Current memory usage")
     warmup_status: dict[str, Any] | None = Field(None, description="Model warm-up status")
     version: str = Field(..., description="Server version")
+
+
+# ============== Embedding Models ==============
+class EmbeddingRequest(BaseModel):
+    """OpenAI-compatible embedding request"""
+
+    input: str | list[str] = Field(..., description="Text input(s) to embed")
+    model: str = Field(..., description="ID of the model to use")
+    encoding_format: str | None = Field("float", description="Format to return embeddings in")
+    dimensions: int | None = Field(None, description="Number of dimensions for embedding")
+    user: str | None = Field(None, description="Unique identifier for the end-user")
+
+
+class EmbeddingData(BaseModel):
+    """Single embedding data point"""
+
+    object: str = "embedding"
+    embedding: list[float] = Field(..., description="The embedding vector")
+    index: int = Field(..., description="Index of the embedding in the input list")
+
+
+class EmbeddingUsage(BaseModel):
+    """Usage information for embedding request"""
+
+    prompt_tokens: int = Field(..., description="Number of tokens in the input")
+    total_tokens: int = Field(..., description="Total number of tokens used")
+
+
+class EmbeddingResponse(BaseModel):
+    """OpenAI-compatible embedding response"""
+
+    object: str = "list"
+    data: list[EmbeddingData] = Field(..., description="List of embeddings")
+    model: str = Field(..., description="Model used for embeddings")
+    usage: EmbeddingUsage = Field(..., description="Usage statistics")
+
+
+# ============== Multimodal Embedding Models ==============
+class MultimodalEmbeddingRequest(BaseModel):
+    """Request for multimodal embeddings (text, image, audio)"""
+
+    input: str | dict[str, Any] = Field(..., description="Input data (text, image bytes, or audio bytes)")
+    input_type: str = Field(..., description="Type of input: text, image, or audio")
+    model: str = Field(..., description="ID of the model to use")
+    encoding_format: str | None = Field("float", description="Format to return embeddings in")
+    dimensions: int | None = Field(None, description="Number of dimensions for embedding")
+    user: str | None = Field(None, description="Unique identifier for the end-user")
+
+
+# ============== Vector Store Models ==============
+class VectorStoreDocument(BaseModel):
+    """Document for vector storage"""
+
+    id: str = Field(..., description="Unique document identifier")
+    content: str = Field(..., description="Document content")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+    content_type: str = Field("text", description="Type of content")
+
+
+class VectorStoreInsertRequest(BaseModel):
+    """Request to insert documents into vector store"""
+
+    collection: str = Field(..., description="Collection name")
+    documents: list[VectorStoreDocument] = Field(..., description="Documents to insert")
+    model: str | None = Field(None, description="Embedding model to use")
+
+
+class VectorStoreInsertResponse(BaseModel):
+    """Response for vector store insertion"""
+
+    inserted_count: int = Field(..., description="Number of documents inserted")
+    collection: str = Field(..., description="Collection name")
+    ids: list[str] = Field(..., description="IDs of inserted documents")
+
+
+class VectorStoreSearchRequest(BaseModel):
+    """Request to search vector store"""
+
+    collection: str = Field(..., description="Collection name")
+    query: str | bytes = Field(..., description="Query text, image, or audio data")
+    query_type: str = Field("text", description="Type of query: text, image, or audio")
+    limit: int = Field(10, ge=1, le=100, description="Maximum number of results")
+    filter: str | None = Field(None, description="Optional filter condition")
+    model: str | None = Field(None, description="Embedding model to use for query")
+
+
+class VectorStoreSearchResult(BaseModel):
+    """Single search result"""
+
+    id: str = Field(..., description="Document ID")
+    content: str = Field(..., description="Document content")
+    metadata: dict[str, Any] | None = Field(None, description="Document metadata")
+    similarity_score: float = Field(..., description="Similarity score (0-1)")
+    content_type: str = Field(..., description="Type of content")
+
+
+class VectorStoreSearchResponse(BaseModel):
+    """Response for vector store search"""
+
+    results: list[VectorStoreSearchResult] = Field(..., description="Search results")
+    collection: str = Field(..., description="Collection name")
+    query_type: str = Field(..., description="Type of query used")
+    total_results: int = Field(..., description="Total number of results found")
+
+
+class CollectionInfo(BaseModel):
+    """Information about a vector store collection"""
+
+    name: str = Field(..., description="Collection name")
+    num_documents: int = Field(..., description="Number of documents in collection")
+    embedding_dimension: int | None = Field(None, description="Embedding vector dimension")
+    content_types: list[str] = Field(default_factory=list, description="Types of content stored")
+
+
+class CollectionListResponse(BaseModel):
+    """Response listing all collections"""
+
+    collections: list[CollectionInfo] = Field(..., description="List of collections")
+    total_collections: int = Field(..., description="Total number of collections")
+
+
+class CreateCollectionRequest(BaseModel):
+    """Request to create a new collection"""
+
+    name: str = Field(..., description="Collection name")
+    dimension: int = Field(..., description="Embedding vector dimension")
+    content_type: str = Field("text", description="Primary content type for this collection")
+    overwrite: bool = Field(False, description="Whether to overwrite existing collection")

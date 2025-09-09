@@ -1,4 +1,4 @@
-# Fluid Server — AI server integrated into your Windows apps
+# Fluid Server — AI server for your Windows apps
 
 **THIS PROJECT IS UNDER ACTIVE DEVELOPMENT**
 

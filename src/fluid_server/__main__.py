@@ -176,7 +176,7 @@ Examples:
     )
 
     # Validate that model path exists - create if missing instead of exiting
-    if not config.model_path.exists():
+    if config.model_path and not config.model_path.exists():
         logger.warning(f"Model path does not exist: {config.model_path}")
         logger.info("Creating model directory automatically...")
         try:
