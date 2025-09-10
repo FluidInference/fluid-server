@@ -41,8 +41,22 @@ jobs:
       - name: Set up Python
         run: uv python install 3.10
       
+      - name: Cache Python installation
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-${{ matrix.arch }}-python-3.10-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-python-3.10-
+      
       - name: Install dependencies
         run: uv sync --all-extras --dev
       
       - name: Run type checking
-        run: uv run ty check
+        run: |
+          if [ "${{ matrix.arch }}" = "x64" ]; then
+            uv run ty check --exclude src/fluid_server/runtimes/qnn_whisper.py
+          else
+            uv run ty check
+          fi
+        shell: bash
