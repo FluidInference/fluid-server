@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Fluid Server is an OpenAI-compatible API server designed to run AI models with OpenVINO backend on Windows. The server provides REST endpoints for chat completions and audio transcription, with model management capabilities including automatic downloading, caching, and memory-efficient runtime switching.
+Fluid Server is an OpenAI-compatible API server designed to run AI models with OpenVINO backend on Windows. The server provides REST endpoints for chat completions, audio transcription, text embeddings, and vector storage with model management capabilities including automatic downloading, caching, and memory-efficient runtime switching.
 
 ## Development Commands
 
@@ -15,6 +15,9 @@ uv sync
 
 # Install development dependencies  
 uv add --dev ty
+
+# Fix OpenVINO tokenizers compatibility issues
+uv pip install -U openvino openvino_tokenizers
 ```
 
 ### Running the Server
@@ -64,6 +67,13 @@ uv run ruff check --fix .
 curl http://localhost:8080/health
 curl http://localhost:8080/v1/models
 
+# Test embeddings endpoint
+curl -X POST http://localhost:8080/v1/embeddings -H "Content-Type: application/json" -d '{"input": ["test text"], "model": "sentence-transformers/all-MiniLM-L6-v2"}'
+
+# Test vector store operations
+curl -X GET http://localhost:8080/v1/vector_store/collections
+curl -X POST http://localhost:8080/v1/vector_store/insert -H "Content-Type: application/json" -d '{"collection": "test_docs", "documents": [{"text": "sample document", "metadata": {"source": "test"}}]}'
+
 # Kill server if needed
 .\scripts\kill_server.ps1
 ```
@@ -94,7 +104,16 @@ curl http://localhost:8080/v1/models
 - `v1/chat.py` - OpenAI-compatible chat completions with streaming support
 - `v1/audio.py` - Audio transcription endpoints
 - `v1/models.py` - Model listing and management
+- `v1/embeddings.py` - Text and multimodal embeddings generation
+- `v1/vector_store.py` - LanceDB vector database operations
 - `health.py` - Health check with OpenVINO status
+
+**Storage and Embeddings (`storage/`, `managers/`)**:
+- `LanceDBClient` - Vector database client for multimodal storage
+- `EmbeddingManager` - Manages text and multimodal embedding models
+- `BaseEmbeddingRuntime` - Abstract base for embedding runtimes
+- `OpenVINOEmbeddingRuntime` - Text embeddings using OpenVINO backend
+- `WhisperEmbeddingRuntime` - Audio embeddings for semantic search
 
 ### Model Organization
 
@@ -102,22 +121,35 @@ Expected directory structure under `model_path`:
 ```
 models/
 ├── llm/
-│   ├──  qwen3-8b-int8-ov/          # LLM model directories
+│   ├── qwen3-8b-int8-ov/          # LLM model directories
 │   └── phi-4-mini/
 ├── whisper/
-│   ├── whisper-tiny/      # Whisper model directories  
+│   ├── whisper-tiny/              # Whisper model directories  
 │   └── whisper-large-v3/
-└── cache/                 # Compiled model cache
+├── embeddings/                    # Text embedding models
+│   └── sentence-transformers/
+└── cache/                         # Compiled model cache
+```
+
+**Data Directory Structure** under `data_root`:
+```
+data/
+├── models/                        # Model files (see above)
+├── cache/                         # Runtime cache and compiled models
+└── databases/                     # LanceDB vector databases
+    └── embeddings/                # Default embeddings database
 ```
 
 ### Key Design Patterns
 
-- **Dual Runtime Architecture**: Separate LLM and Whisper models can be loaded simultaneously for optimal performance
+- **Multi-Runtime Architecture**: Separate LLM, Whisper, and embedding models can be loaded simultaneously for optimal performance
 - **Background Model Management**: Automatic downloading, warm-up, and idle cleanup with progress tracking
 - **Device-Specific Runtime Selection**: QNN backend automatically used on ARM64, OpenVINO/llama.cpp on other architectures
 - **OpenAI Compatibility**: Request/response formats match OpenAI API for drop-in replacement
 - **PyInstaller Ready**: Handles frozen executable detection for simplified deployment
 - **Graceful Degradation**: Falls back to alternative runtimes if primary backend unavailable
+- **Vector Database Integration**: LanceDB provides multimodal storage for embeddings, text, and metadata
+- **Memory Management**: Configurable idle timeout and memory limits prevent resource exhaustion
 
 ### Configuration
 
@@ -125,15 +157,44 @@ Server behavior controlled via `ServerConfig` dataclass:
 - Model paths and device selection (CPU/GPU/NPU)
 - Memory limits and idle timeout settings
 - Generation defaults (max_tokens, temperature, top_p)
-- Feature flags (warm_up, idle cleanup)
+- Feature flags (warm_up, idle cleanup, embeddings)
+- Embedding model configuration and vector database settings
+- Default models: `qwen3-8b-int4-ov` (LLM), `whisper-large-v3-turbo-fp16-ov-npu` (Whisper), `sentence-transformers/all-MiniLM-L6-v2` (embeddings)
 
 Command-line arguments override configuration defaults. The server validates model availability on startup and provides informative warnings for missing models.
 
 ## Important Development Notes
 
 - **Python Version**: Project requires exactly Python 3.10 (`==3.10.*`)
+- **OpenVINO Compatibility**: OpenVINO and OpenVINO Tokenizers versions must be binary compatible. Update both packages together if encountering DLL loading errors
 - **Architecture Support**: QNN backend only available on ARM64 with conditional imports to prevent PyInstaller issues
-- **Model Management**: Use `RuntimeManager` for all model operations - it handles downloading, loading, and resource management
-- **Memory Optimization**: Prefer the dual runtime architecture over single model switching for production use
+- **Model Management**: Use `RuntimeManager` and `EmbeddingManager` for all model operations - they handle downloading, loading, and resource management
+- **Memory Optimization**: Prefer the multi-runtime architecture over single model switching for production use
 - **Error Handling**: All runtimes implement graceful loading/unloading with proper resource cleanup
-- Check the system architecture before making assumptions. ARM we test QNN, x64 intel we test openvino
+- **Testing Architecture**: ARM64 systems test QNN backend, x64 Intel systems test OpenVINO backend
+- **Vector Database**: LanceDB integration requires embedding models to be loaded before vector operations
+- **Multimodal Support**: Text embeddings via sentence-transformers, image embeddings via CLIP, audio embeddings via Whisper
+- **Build System**: PyInstaller creates single-file executable with architecture detection and runtime selection
+- **Model Loading Issues**: If models fail to load with "Failed to create llama_context", check GPU memory availability and consider reducing model size or switching to CPU backend
+
+## Code Style Guidelines
+
+**Type Hints and Imports**:
+- Use absolute imports from `fluid_server` package
+- Required type hints for all function signatures
+- Use `Path` objects for filesystem paths, `Optional[T]` for nullable types
+
+**Async and Threading**:
+- Use `async/await` for I/O operations
+- Run OpenVINO inference in ThreadPoolExecutor for CPU-bound operations
+- Handle device selection gracefully (CPU/GPU/NPU)
+
+**Error Handling and Logging**:
+- Use module-level `logger = logging.getLogger(__name__)`
+- Log errors with `logger.error()` before raising exceptions
+- Use specific exception types, avoid generic `Exception`
+
+**FastAPI Patterns**:
+- Use Pydantic models for request/response validation
+- Leverage dependency injection for shared state (managers, clients)
+- Implement proper lifespan management for resource cleanup

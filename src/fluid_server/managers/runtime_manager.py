@@ -5,6 +5,7 @@ Runtime manager for handling multiple AI models
 import asyncio
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 from ..config import ServerConfig
@@ -22,10 +23,10 @@ if get_architecture() == "arm64" and is_runtime_available("qnn"):
         from ..runtimes.qnn_whisper import QNNWhisperRuntime
         QNN_AVAILABLE = True
     except ImportError:
-        QNNWhisperRuntime = None
+        QNNWhisperRuntime: type | None = None  # Explicit annotation for shadowing
         QNN_AVAILABLE = False
 else:
-    QNNWhisperRuntime = None
+    QNNWhisperRuntime: type | None = None  # Explicit annotation for shadowing
     QNN_AVAILABLE = False
 from ..utils.model_discovery import ModelDiscovery
 from ..utils.model_downloader import ModelDownloader
@@ -50,9 +51,9 @@ class RuntimeManager:
         self.whisper_runtime: BaseRuntime | None = None
         self.loaded_llm_model: str | None = None
         self.loaded_whisper_model: str | None = None
-        self.available_models = ModelDiscovery.find_models(config.model_path, config.llm_model)
+        self.available_models = ModelDiscovery.find_models(config.model_path_resolved, config.llm_model)
         self.downloader = ModelDownloader(
-            config.model_path, config.cache_dir or config.model_path / "cache"
+            config.model_path_resolved, config.cache_dir_resolved
         )
         self._idle_task: asyncio.Task | None = None
         self.download_status: dict[str, str] = {}  # Track download status for models
@@ -221,7 +222,7 @@ class RuntimeManager:
             gc.collect()
 
         # Get model path
-        model_path = ModelDiscovery.get_model_path(self.config.model_path, "llm", model_to_load)
+        model_path = ModelDiscovery.get_model_path(self.config.model_path_resolved, "llm", model_to_load)
 
         if model_path is None:
             logger.info(f"LLM model '{model_to_load}' not found locally, attempting to download...")
@@ -229,8 +230,8 @@ class RuntimeManager:
             model_available = await self.downloader.ensure_model_available("llm", model_to_load)
             if model_available:
                 # Refresh model discovery after download
-                self.available_models = ModelDiscovery.find_models(self.config.model_path)
-                model_path = ModelDiscovery.get_model_path(self.config.model_path, "llm", model_to_load)
+                self.available_models = ModelDiscovery.find_models(self.config.model_path_resolved)
+                model_path = ModelDiscovery.get_model_path(self.config.model_path_resolved, "llm", model_to_load)
                 logger.info(f"Successfully downloaded LLM model '{model_to_load}'")
             else:
                 logger.error(f"Failed to download LLM model '{model_to_load}'")
@@ -243,6 +244,10 @@ class RuntimeManager:
         # Determine runtime type based on model format
         runtime_type = ModelDiscovery.get_llm_runtime_type(model_path, model_to_load)
         logger.info(f"Loading LLM model '{model_to_load}' using {runtime_type.upper()} runtime")
+        
+        # Type assertion for type checker - model_path is guaranteed to be Path here
+        assert model_path is not None, "model_path should not be None at this point"
+        model_path_resolved: Path = model_path  # Explicit type narrowing
 
         @retry_async(
             max_attempts=3,
@@ -256,15 +261,15 @@ class RuntimeManager:
         async def _load_with_retry():
             if runtime_type == "llamacpp":
                 runtime = LlamaCppRuntime(
-                    model_path=model_path,
-                    cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                    model_path=model_path_resolved,
+                    cache_dir=self.config.cache_dir_resolved,
                     device="GPU",  # Will use Vulkan backend
                     model_name=model_to_load,  # Pass the actual model identifier
                 )
             else:  # openvino
                 runtime = OpenVINOLLMRuntime(
-                    model_path=model_path,
-                    cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                    model_path=model_path_resolved,
+                    cache_dir=self.config.cache_dir_resolved,
                     device="GPU",
                     max_memory_gb=self.config.max_memory_gb,
                 )
@@ -318,7 +323,7 @@ class RuntimeManager:
             gc.collect()
 
         # Get model path
-        model_path = ModelDiscovery.get_model_path(self.config.model_path, "whisper", model_to_load)
+        model_path = ModelDiscovery.get_model_path(self.config.model_path_resolved, "whisper", model_to_load)
 
         if model_path is None:
             logger.error(f"Whisper model '{model_to_load}' not found")
@@ -343,20 +348,20 @@ class RuntimeManager:
                     logger.warning("QNN runtime requested but not available, falling back to OpenVINO")
                     runtime = OpenVINOWhisperRuntime(
                         model_path=model_path,
-                        cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                        cache_dir=self.config.cache_dir_resolved,
                         device="NPU",
                         max_memory_gb=self.config.max_memory_gb,
                     )
                 else:
                     runtime = QNNWhisperRuntime(
                         model_path=model_path,
-                        cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                        cache_dir=self.config.cache_dir_resolved,
                         device="NPU",
                     )
             else:  # openvino
                 runtime = OpenVINOWhisperRuntime(
                     model_path=model_path,
-                    cache_dir=self.config.cache_dir or self.config.model_path / "cache",
+                    cache_dir=self.config.cache_dir_resolved,
                     device="NPU",
                     max_memory_gb=self.config.max_memory_gb,
                 )
@@ -532,7 +537,7 @@ class RuntimeManager:
     def discover_models(self) -> None:
         """Refresh the list of available models"""
         logger.info(f"Discovering models in {self.config.model_path}")
-        self.available_models = ModelDiscovery.find_models(self.config.model_path)
+        self.available_models = ModelDiscovery.find_models(self.config.model_path_resolved)
         logger.info(f"Available models: {self.available_models}")
 
     def get_status(self) -> dict[str, Any]:

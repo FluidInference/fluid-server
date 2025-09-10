@@ -142,7 +142,7 @@ async def download_model(
             )
 
         # Get model directory
-        model_base_path = runtime_manager.config.model_path / request.model_type
+        model_base_path = runtime_manager.config.model_path_resolved / request.model_type
         model_base_path.mkdir(parents=True, exist_ok=True)
 
         # Determine local name

@@ -19,9 +19,12 @@ dependencies = [
     "librosa>=0.10.0",
     "pyinstaller>=6.15.0",
     "soundfile>=0.13.1",
-    "onnxruntime-qnn==1.22.0",
+    "onnxruntime-qnn==1.22.0; sys_platform == 'win32'",
     "openai-whisper>=20231117",
     "llama-cpp-python>=0.3.0",
+    "lancedb>=0.14.0",
+    "sentence-transformers>=2.2.0",
+    "pillow>=10.0.0",
 ]
 
 [tool.uv]
