@@ -22,7 +22,9 @@
       "Bash(.\\dist\\fluid-server.exe:*)",
       "Bash(./dist/fluid-server.exe:*)",
       "Bash(del:*)",
-      "Bash(gh release:*)"
+      "Bash(gh release:*)",
+      "Bash(uv pip:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []
