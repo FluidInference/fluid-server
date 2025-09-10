@@ -15,6 +15,9 @@ uv sync
 
 # Install development dependencies  
 uv add --dev ty
+
+# Fix OpenVINO tokenizers compatibility issues
+uv pip install -U openvino openvino_tokenizers
 ```
 
 ### Running the Server
@@ -63,6 +66,13 @@ uv run ruff check --fix .
 # Manual testing endpoints
 curl http://localhost:8080/health
 curl http://localhost:8080/v1/models
+
+# Test embeddings endpoint
+curl -X POST http://localhost:8080/v1/embeddings -H "Content-Type: application/json" -d '{"input": ["test text"], "model": "sentence-transformers/all-MiniLM-L6-v2"}'
+
+# Test vector store operations
+curl -X GET http://localhost:8080/v1/vector_store/collections
+curl -X POST http://localhost:8080/v1/vector_store/insert -H "Content-Type: application/json" -d '{"collection": "test_docs", "documents": [{"text": "sample document", "metadata": {"source": "test"}}]}'
 
 # Kill server if needed
 .\scripts\kill_server.ps1
@@ -156,6 +166,7 @@ Command-line arguments override configuration defaults. The server validates mod
 ## Important Development Notes
 
 - **Python Version**: Project requires exactly Python 3.10 (`==3.10.*`)
+- **OpenVINO Compatibility**: OpenVINO and OpenVINO Tokenizers versions must be binary compatible. Update both packages together if encountering DLL loading errors
 - **Architecture Support**: QNN backend only available on ARM64 with conditional imports to prevent PyInstaller issues
 - **Model Management**: Use `RuntimeManager` and `EmbeddingManager` for all model operations - they handle downloading, loading, and resource management
 - **Memory Optimization**: Prefer the multi-runtime architecture over single model switching for production use
@@ -164,6 +175,7 @@ Command-line arguments override configuration defaults. The server validates mod
 - **Vector Database**: LanceDB integration requires embedding models to be loaded before vector operations
 - **Multimodal Support**: Text embeddings via sentence-transformers, image embeddings via CLIP, audio embeddings via Whisper
 - **Build System**: PyInstaller creates single-file executable with architecture detection and runtime selection
+- **Model Loading Issues**: If models fail to load with "Failed to create llama_context", check GPU memory availability and consider reducing model size or switching to CPU backend
 
 ## Code Style Guidelines
 
