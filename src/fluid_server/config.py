@@ -98,3 +98,21 @@ class ServerConfig:
 
         # Mark as initialized
         self._initialized = True
+
+    @property
+    def model_path_resolved(self) -> Path:
+        """Get model_path as guaranteed Path (after __post_init__)"""
+        assert self.model_path is not None, "model_path should be set after __post_init__"
+        return self.model_path
+
+    @property
+    def cache_dir_resolved(self) -> Path:
+        """Get cache_dir as guaranteed Path (after __post_init__)"""
+        assert self.cache_dir is not None, "cache_dir should be set after __post_init__"
+        return self.cache_dir
+
+    @property
+    def embeddings_db_path_resolved(self) -> Path:
+        """Get embeddings_db_path as guaranteed Path (after __post_init__)"""
+        assert self.embeddings_db_path is not None, "embeddings_db_path should be set after __post_init__"
+        return self.embeddings_db_path

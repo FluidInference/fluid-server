@@ -43,7 +43,7 @@ class EmbeddingManager:
         # Model discovery and downloading
         self.available_models: Dict[str, List[str]] = {}
         self.downloader = ModelDownloader(
-            config.model_path, config.cache_dir or config.model_path / "cache"
+            config.model_path_resolved, config.cache_dir_resolved
         )
         
         # Idle cleanup task

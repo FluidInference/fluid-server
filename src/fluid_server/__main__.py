@@ -36,9 +36,9 @@ def main() -> None:
     if getattr(sys, 'frozen', False):
         import io
         if sys.stdout is None:
-            sys.stdout = io.TextIOWrapper(io.BufferedWriter(io.BytesIO()), encoding='utf-8')
+            sys.stdout = io.TextIOWrapper(io.BytesIO(), encoding='utf-8')
         if sys.stderr is None:
-            sys.stderr = io.TextIOWrapper(io.BufferedWriter(io.BytesIO()), encoding='utf-8')
+            sys.stderr = io.TextIOWrapper(io.BytesIO(), encoding='utf-8')
 
     parser = argparse.ArgumentParser(
         description="Fluid Server - OpenAI-compatible API with multiple model support",
@@ -193,8 +193,8 @@ Examples:
             )
 
     # Discover available models
-    logger.info(f"Discovering models in {config.model_path}")
-    available_models = ModelDiscovery.find_models(config.model_path, config.llm_model)
+    logger.info(f"Discovering models in {config.model_path_resolved}")
+    available_models = ModelDiscovery.find_models(config.model_path_resolved, config.llm_model)
 
     # Log available models
     if available_models.get("llm"):
@@ -209,7 +209,7 @@ Examples:
 
     # Validate requested models exist
     if config.llm_model not in available_models.get("llm", []):
-        logger.warning(f"LLM model '{config.llm_model}' not found in {config.model_path / 'llm'}")
+        logger.warning(f"LLM model '{config.llm_model}' not found in {config.model_path_resolved / 'llm'}")
         if available_models.get("llm"):
             logger.info(f"Available LLM models: {available_models['llm']}")
             logger.info("Continuing without LLM support...")

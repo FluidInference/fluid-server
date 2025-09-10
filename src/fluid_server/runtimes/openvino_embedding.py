@@ -77,11 +77,8 @@ class OpenVINOEmbeddingRuntime(BaseEmbeddingRuntime):
 
             self.ov = ov
             
-            # Set OpenVINO logging level
-            try:
-                ov.properties.log.level = 0
-            except AttributeError:
-                pass
+            # Note: OpenVINO logging level configuration varies by version
+            # Skip setting log level to avoid compatibility issues
 
             # Use model-specific cache subdirectory
             model_cache = self.cache_dir / "embeddings" / self.model_name
