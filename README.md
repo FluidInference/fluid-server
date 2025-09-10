@@ -7,23 +7,20 @@
 
 A portable, packaged OpenAI-compatible server for Windows desktop applications. LLM, Transcription, embeddings, and vector DB, all out of the box.
 
+Note that this does require you to run the .exe as a sepearte async process, like a local serving server in your application, and you will need to make requests to serve inference.
+
 ## Features
 
 **Core Capabilities**
-- **LLM Chat Completions** - OpenAI-compatible API with streaming
-- **Audio Transcription** - Whisper models with NPU acceleration
+- **LLM Chat Completions** - OpenAI-compatible API with streaming, backed by llama.cpp and OpenVINO 
+- **Audio Transcription** - Whisper models with NPU acceleration, backed by OpenVINO and Qualcomm QNN
 - **Text Embeddings** - Vector embeddings for search and RAG
 - **Vector Database** - LanceDB integration for multimodal storage
 
 **Hardware Acceleration**
 - **Intel NPU** via OpenVINO backend
 - **Qualcomm NPU** via QNN (Snapdragon X Elite)
-- **Cross-platform** - Runtime detection
-
-**Easy Integration**
-- Single binary deployment
-- OpenAI SDK compatible
-- .NET, Python, Node.js support
+- **Vulkan GPU** via llama-cpp
 
 ## Quick Start
 

@@ -15,8 +15,7 @@ from ...models.openai import (
     EmbeddingRequest,
     EmbeddingResponse,
     EmbeddingData,
-    EmbeddingUsage,
-    MultimodalEmbeddingRequest
+    EmbeddingUsage
 )
 
 logger = logging.getLogger(__name__)

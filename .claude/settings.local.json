@@ -18,7 +18,9 @@
       "Bash(dir:*)",
       "Bash(uv sync:*)",
       "Bash(uv pip install:*)",
-      "Bash(.\\dist\\fluid-server.exe --whisper-model whisper-large-v3-turbo-qnn --log-level DEBUG --host 127.0.0.1 --port 8080)"
+      "Bash(.\\dist\\fluid-server.exe --whisper-model whisper-large-v3-turbo-qnn --log-level DEBUG --host 127.0.0.1 --port 8080)",
+      "Bash(.\\dist\\fluid-server.exe:*)",
+      "Bash(./dist/fluid-server.exe:*)"
     ],
     "deny": [],
     "ask": []
