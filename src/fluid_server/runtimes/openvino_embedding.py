@@ -77,9 +77,6 @@ class OpenVINOEmbeddingRuntime(BaseEmbeddingRuntime):
 
             self.ov = ov
             
-            # Note: OpenVINO logging level configuration varies by version
-            # Skip setting log level to avoid compatibility issues
-
             # Use model-specific cache subdirectory
             model_cache = self.cache_dir / "embeddings" / self.model_name
             model_cache.mkdir(parents=True, exist_ok=True)
