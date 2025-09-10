@@ -5,179 +5,105 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da.svg)](https://discord.gg/WNsvaCtmDe)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/collections/FluidInference)
 
-The goal is to provide a portable, packaged OpenAI‑like server that any Windows desktop application can integrate with, offering optimal model configurations for each chipset. We prioritize AI accelerators where possible; for LLM inference we currently use llama.cpp.
+A portable, packaged OpenAI-compatible server for Windows desktop applications. Provides optimal model configurations for each chipset with AI accelerator support.
 
-We plan to provide features including LLM, transcription, text‑to‑speech, speaker diarization, VAD, and more.  
+## Features
 
-It is designed to bundle into a single binary for easy integration into existing desktop applications.
+**Core Capabilities**
+- **LLM Chat Completions** - OpenAI-compatible API with streaming
+- **Audio Transcription** - Whisper models with NPU acceleration
+- **Text Embeddings** - Vector embeddings for search and RAG
+- **Vector Database** - LanceDB integration for multimodal storage
 
-**Currently supported NPU runtimes for transcription:**
+**Hardware Acceleration**
 - **Intel NPU** via OpenVINO backend
 - **Qualcomm NPU** via QNN (Snapdragon X Elite)
+- **Cross-platform** - Runtime detection
 
-The server automatically detects your model format and selects the appropriate runtime for optimal performance. For macOS, see [FluidAudio](https://github.com/FluidInference/FluidAudio).
-
-We built this due to fragmented support across Windows devices. There is no clear standard for running local inference across chipsets—especially on AI accelerators.
-
-## NPU Support
-
-Fluid Server supports multiple NPU runtimes for optimal performance on different hardware:
-
-### Intel NPU (OpenVINO)
-- **Models**: Uses OpenVINO IR format (.xml/.bin files)
-- **Location**: `models/whisper/whisper-large-v3-turbo-fp16-ov-npu/`
-- **Performance**: Optimized for Intel NPU and integrated graphics
-
-### Qualcomm NPU (QNN)
-- **Models**: Uses ONNX format with device-specific compilation
-- **Location**: `models/whisper/whisper-large-v3-turbo-qnn/snapdragon-x-elite/`
-- **Performance**: 16× real‑time transcription on Snapdragon X Elite
-- **Hardware**: Snapdragon X Elite devices with HTP (Hexagon Tensor Processor)
+**Easy Integration**
+- Single binary deployment
+- OpenAI SDK compatible
+- .NET, Python, Node.js support
 
 ## Quick Start
 
-### Prerequisites
+### 1. Download or Build
 
-- Windows 10/11
-- Python 3.10+ with `uv` package manager
-- **For Intel NPU:** OpenVINO 2025.2.0+ runtime
-- **For Qualcomm NPU:** ONNX Runtime QNN (bundled with dependencies)
-- 8GB+ RAM (16GB recommended for 8B models)
-- **Recommended:** Snapdragon X Elite device for optimal QNN performance
+**Option A: Download Release**
+- Download `fluid-server.exe` from [releases](https://github.com/FluidInference/fluid-server/releases)
 
-### Development
-
-1. Install dependencies:
-
+**Option B: Run from Source**
 ```powershell
+# Install dependencies and run
 uv sync
+uv run
 ```
 
-1. Run the development server:
+### 2. Run the Server
 
 ```powershell
-uv run python src/main.py
-```
-
-1. Test endpoints:
-
-- <http://localhost:8080> - Welcome page
-- <http://localhost:8080/health> - Health check with OpenVINO status
-- <http://localhost:8080/docs> - Interactive API documentation
-- <http://localhost:8080/v1/models> - List models (mock)
-- POST <http://localhost:8080/v1/test> - Test OpenVINO operation
-
-### Build Executable
-
-Run the build script:
-
-```powershell
-.\build.ps1
-```
-
-This creates `dist/fluid-server.exe` (approximately 276 MB with OpenVINO + QNN bundled).
-
-### Test Executable
-
-Quick test with the provided script:
-
-```powershell
-.\test_exe.ps1
-```
-
-Or run manually:
-
-```powershell
+# Run with default settings
 .\dist\fluid-server.exe
-```
 
-Command-line options:
-
-```powershell
+# Or with custom options
 .\dist\fluid-server.exe --host 127.0.0.1 --port 8080
 ```
 
-## Example Usage
+### 3. Test the API
 
-### Testing with curl
+- **Health Check**: http://localhost:8080/health
+- **API Docs**: http://localhost:8080/docs
+- **Models**: http://localhost:8080/v1/models
 
-```powershell
-# Check server health
-curl http://localhost:8080/health
+## Usage Examples
 
-# Chat completion (non‑streaming)
-curl -X POST http://localhost:8080/v1/chat/completions `
-  -H "Content-Type: application/json" `
-  -d '{"model": "qwen3-8b-int8-ov", "messages": [{"role": "user", "content": "Hello!"}], "max_tokens": 100}'
+### Basic Chat Completion
 
-# Audio transcription with QNN model
-curl -X POST http://localhost:8080/v1/audio/transcriptions `
-  -F "file=@audio.wav" `
-  -F "model=whisper-large-v3-turbo-qnn" `
-  -F "response_format=json"
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen3-8b-int8-ov", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
-### Integration with OpenAI SDK
+### Python Integration
 
 ```python
 from openai import OpenAI
 
-# Point to local server
-client = OpenAI(
-    base_url="http://localhost:8080/v1",
-    api_key="local"  # Can be anything for local server
-)
+client = OpenAI(base_url="http://localhost:8080/v1", api_key="local")
 
-# Chat completion
-response = client.chat.completions.create(
+# Chat with streaming
+for chunk in client.chat.completions.create(
     model="qwen3-8b-int8-ov",
     messages=[{"role": "user", "content": "Hello!"}],
-    stream=True  # Streaming supported
-)
-
-for chunk in response:
+    stream=True
+):
     print(chunk.choices[0].delta.content or "", end="")
-
-# Audio transcription with QNN
-with open("audio.wav", "rb") as audio_file:
-    transcript = client.audio.transcriptions.create(
-        model="whisper-large-v3-turbo-qnn",
-        file=audio_file
-    )
-    print(transcript.text)
 ```
 
-### Integration with .NET Application
+### Audio Transcription
 
-```csharp
-// Use with OpenAI SDK for .NET
-var client = new OpenAIClient(
-    new Uri("http://localhost:8080/v1"),
-    new ApiKeyCredential("local")
-);
-
-var response = await client.GetChatCompletionsAsync(
-    "qwen3-8b-int8-ov",
-    new ChatCompletionsOptions {
-        Messages = { new ChatRequestUserMessage("Hello!") },
-        MaxTokens = 100
-    }
-);
+```bash
+curl -X POST http://localhost:8080/v1/audio/transcriptions \
+  -F "file=@audio.wav" \
+  -F "model=whisper-large-v3-turbo-qnn"
 ```
 
-### FAQ
+## Documentation
 
-### Why Python?
+📖 **Comprehensive Guides**
+- [NPU Support Guide](docs/npu-support.md) - Intel & Qualcomm NPU configuration
+- [Integration Guide](docs/integration-guide.md) - Python, .NET, Node.js examples
+- [Development Guide](docs/development.md) - Setup, building, and contributing
+- [LanceDB Integration](docs/lancedb.md) - Vector database and embeddings
+- [GGUF Model Support](docs/GGUF-model-support.md) - Using any GGUF model
+- [Compilation Guide](docs/compilation-guide.md) - Build system details
 
-Good question. It is the easiest to support. Most ML work is done in Python, so it is the best supported across the runtimes we target. PyInstaller lets us bundle everything into a single .exe, which is very helpful.
+## FAQ
 
-C++ and Rust are options we have considered, but they require more investment, and the team is not yet familiar enough with Rust to make that jump. We may build a C++ server later, but we want to avoid heavy lifting on the inference side where possible.
+**Why Python?** Best ML ecosystem support and PyInstaller packaging.
 
-Tools like `uv`, `ty`, `FastAPI`, and `Pydantic` have also made Python much more manageable.
-
-### Why not just llama.cpp or whisper.cpp?
-
-Those are solid options, but the goal is to support other runtimes and model formats beyond GGML. We want to leverage AI accelerators available on various devices, and this is the simplest way to achieve that.
+**Why not llama.cpp?** We support multiple runtimes and AI accelerators beyond GGML.
 
 ## Acknowledgements
 
@@ -187,5 +113,3 @@ Built using `ty`, `FastAPI`, `Pydantic`, `ONNX Runtime`, `OpenAI Whisper`, and v
 - `OpenVINO` - Intel NPU and GPU acceleration
 - `Qualcomm QNN` - Snapdragon NPU optimization with HTP backend
 - `ONNX Runtime` - Cross-platform AI inference
-
-[**SearchSavior/OpenArc**](https://github.com/SearchSavior/OpenArc) - for the idea!

@@ -9,18 +9,18 @@
       "Bash(/bashes)",
       "Bash(taskkill:*)",
       "Bash(uv add:*)",
-      "Bash(.scriptsbuild.ps1)",
+      "Bash(.\\scripts\\build.ps1)",
       "Bash(del test_idle_functionality.py)",
       "Bash(powershell:*)",
-      "Bash(.distfluid-server.exe --help)",
+      "Bash(.\\dist\\fluid-server.exe --help)",
       "Bash(timeout:*)",
-      "Bash(dir C:Usersbrandsourcereposfluid-server-2tests)",
+      "Bash(dir C:\\Users\\brand\\source\\repos\\fluid-server-2\\tests)",
       "Bash(dir:*)",
       "Bash(uv sync:*)",
       "Bash(uv pip install:*)",
-      "Bash(.distfluid-server.exe --whisper-model whisper-large-v3-turbo-qnn --log-level DEBUG --host 127.0.0.1 --port 8080)"
+      "Bash(.\\dist\\fluid-server.exe --whisper-model whisper-large-v3-turbo-qnn --log-level DEBUG --host 127.0.0.1 --port 8080)"
     ],
     "deny": [],
-    "ask": [],
+    "ask": []
   }
 }

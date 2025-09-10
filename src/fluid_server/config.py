@@ -27,16 +27,11 @@ class ServerConfig:
 
     # Embeddings configuration
     enable_embeddings: bool = True  # Enable embeddings functionality
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"  # Default text embedding model (384 dim)
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"  # Default text embedding model (384 dim) 22M parameters
     embedding_device: str = "CPU"  # Device for embeddings: AUTO, CPU, GPU, NPU (CPU more stable for sentence-transformers)
     embeddings_db_name: str = "embeddings"  # LanceDB database name
     multimodal_model: str = "openai/clip-vit-base-patch32"  # For image embeddings
     
-    # Alternative embedding models (can be configured)
-    # "BAAI/bge-small-en-v1.5"     # 384 dimensions, good performance
-    # "BAAI/bge-base-en-v1.5"      # 768 dimensions, better quality
-    # "sentence-transformers/all-mpnet-base-v2"  # 768 dimensions, high quality
-
     # Features
     warm_up: bool = True  # Warm up models on startup
     max_memory_gb: float = 4.0  # Memory limit
