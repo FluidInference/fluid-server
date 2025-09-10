@@ -37,4 +37,4 @@ jobs:
         run: uv sync --all-extras --dev
       
       - name: Run type checking
-        run: uv run ty
+        run: uv run ty check
