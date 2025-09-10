@@ -1,9 +1,9 @@
-# Fluid Server — AI server for your Windows apps
-
-**THIS PROJECT IS UNDER ACTIVE DEVELOPMENT**
+# Fluid Server: Local AI server for your Windows apps
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da.svg)](https://discord.gg/WNsvaCtmDe)
 [![Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue)](https://huggingface.co/collections/FluidInference)
+
+**THIS PROJECT IS UNDER ACTIVE DEVELOPMENT** Its not ready for production usage but serves as a good reference for hwo to run whisper on Qualcomm and Intel NPUs
 
 A portable, packaged OpenAI-compatible server for Windows desktop applications. LLM, Transcription, embeddings, and vector DB, all out of the box.
 
