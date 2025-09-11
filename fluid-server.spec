@@ -44,18 +44,30 @@ hiddenimports = [
     'llama_cpp',
     'llama_cpp.llama_cpp',
     'llama_cpp._internals',
+    'torch',
+    'torch._C',
+    'torch.lib',
+    'transformers',
+    'sentence_transformers',    
 ]
+
+
+excludes = [] 
 
 # Architecture-specific package collection
 if platform.machine().lower() in ['x86_64', 'amd64']:
-    # x64: Only include basic packages, skip OpenVINO collection to avoid torch issues
-    collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp']
+    # x64: Include torch for embedding functionality
+    collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp', 'torch', 'transformers']
     hiddenimports.extend([
         'openvino', 
         'openvino_genai', 
         'openvino_tokenizers', 
         'openvino.runtime', 
         'openvino.properties',
+    ])
+    excludes.extend([
+        'onnxruntime', 
+        'whisper'
     ])
 elif platform.machine().lower() in ['arm64', 'aarch64']:
     # ARM64: Include ARM-specific packages
@@ -69,9 +81,6 @@ elif platform.machine().lower() in ['arm64', 'aarch64']:
         'whisper.audio',
         'whisper.tokenizer',
     ])
-else:
-    # Default: basic packages only
-    collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp']
 
 # Collect packages normally
 for pkg in collect_packages:
@@ -89,7 +98,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['openvino.torch', 'openvino.frontend.pytorch'] + (['onnxruntime', 'whisper'] if platform.machine().lower() in ['x86_64', 'amd64'] else []),
+    excludes=excludes,
     noarchive=False,
     optimize=0,
 )
@@ -111,8 +120,6 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    # target_arch can be set to 'arm64' or 'x86_64' if needed
-    # By default, PyInstaller builds for the host architecture
     codesign_identity=None,
     entitlements_file=None,
 )

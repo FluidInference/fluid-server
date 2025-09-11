@@ -209,7 +209,7 @@ Examples:
 
     # Validate requested models exist
     if config.llm_model not in available_models.get("llm", []):
-        logger.warning(f"LLM model '{config.llm_model}' not found in {config.model_path_resolved / 'llm'}")
+        logger.warning(f"LLM model '{config.llm_model}' not found in {config.model_path_resolved}")
         if available_models.get("llm"):
             logger.info(f"Available LLM models: {available_models['llm']}")
             logger.info("Continuing without LLM support...")

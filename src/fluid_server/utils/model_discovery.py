@@ -202,12 +202,12 @@ class ModelDiscovery:
                 logger.warning(f"Model validation failed for {model_path}")
                 return None
         
-        # For LLM models not found locally, assume they're GGUF models - return cache path
+        # For LLM models not found locally, assume they're GGUF models - return base path for downloads
         if model_type == "llm":
-            # Return the base model cache path for GGUF models
-            cache_path = base_path / model_type / "cache"
-            cache_path.mkdir(parents=True, exist_ok=True)  # Ensure cache directory exists
-            return cache_path
+            # For GGUF models, use the base path directly as the cache directory
+            # This allows custom model paths to work correctly
+            base_path.mkdir(parents=True, exist_ok=True)  # Ensure base directory exists
+            return base_path
         
         # For non-LLM models, they must exist locally
         logger.debug(f"Model path does not exist: {model_path}")
