@@ -57,6 +57,12 @@ if platform.machine().lower() in ['x86_64', 'amd64']:
         'openvino.runtime', 
         'openvino.properties',
     ])
+    
+    # Explicitly collect openvino_tokenizers to include DLLs
+    tmp_ret = collect_all('openvino_tokenizers')
+    datas += tmp_ret[0]
+    binaries += tmp_ret[1]
+    hiddenimports += tmp_ret[2]
 elif platform.machine().lower() in ['arm64', 'aarch64']:
     # ARM64: Include ARM-specific packages
     collect_packages = ['librosa', 'scipy', 'soundfile', 'llama_cpp', 'whisper', 'onnxruntime']
