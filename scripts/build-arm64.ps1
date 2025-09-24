@@ -31,8 +31,8 @@ if (Test-Path "dist") {
 if (Test-Path "build") {
     Remove-Item -Path "build" -Recurse -Force
 }
-if (Test-Path "*.spec") {
-    Remove-Item -Path "*.spec" -Force
+if (Test-Path "fluid-server-arm64.spec") {
+    Remove-Item -Path "fluid-server-arm64.spec" -Force
 }
 
 # Install dependencies
@@ -72,3 +72,4 @@ if (Test-Path "dist/fluid-server.exe") {
     Write-Host "`nBuild failed!" -ForegroundColor Red
     exit 1
 }
+

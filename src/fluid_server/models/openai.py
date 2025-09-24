@@ -4,7 +4,7 @@ OpenAI-compatible API models with full type hints
 
 import time
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -163,10 +163,6 @@ class EmbeddingResponse(BaseModel):
     usage: EmbeddingUsage = Field(..., description="Usage statistics")
 
 
-# ============== Multimodal Embedding Models ==============
-class MultimodalEmbeddingRequest(BaseModel):
-    """Request for multimodal embeddings (text, image, audio)"""
-
     input: str | dict[str, Any] = Field(..., description="Input data (text, image bytes, or audio bytes)")
     input_type: str = Field(..., description="Type of input: text, image, or audio")
     model: str = Field(..., description="ID of the model to use")
@@ -205,8 +201,8 @@ class VectorStoreSearchRequest(BaseModel):
     """Request to search vector store"""
 
     collection: str = Field(..., description="Collection name")
-    query: str | bytes = Field(..., description="Query text, image, or audio data")
-    query_type: str = Field("text", description="Type of query: text, image, or audio")
+    query: str = Field(..., description="Query text")
+    query_type: Literal["text"] = Field("text", description="Type of query (text only)")
     limit: int = Field(10, ge=1, le=100, description="Maximum number of results")
     filter: str | None = Field(None, description="Optional filter condition")
     model: str | None = Field(None, description="Embedding model to use for query")
@@ -227,7 +223,7 @@ class VectorStoreSearchResponse(BaseModel):
 
     results: list[VectorStoreSearchResult] = Field(..., description="Search results")
     collection: str = Field(..., description="Collection name")
-    query_type: str = Field(..., description="Type of query used")
+    query_type: Literal["text"] = Field("text", description="Type of query used")
     total_results: int = Field(..., description="Total number of results found")
 
 

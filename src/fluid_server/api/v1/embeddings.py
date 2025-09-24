@@ -4,9 +4,9 @@ OpenAI-compatible embeddings endpoint
 
 import logging
 import time
-from typing import Annotated, List, Union
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ...managers.embedding_manager import EmbeddingManager
@@ -129,131 +129,6 @@ async def create_embeddings_batch(
             raise
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/embeddings/multimodal")
-async def create_multimodal_embeddings(
-    embedding_manager: Annotated[EmbeddingManager, Depends(get_embedding_manager)],
-    input_type: str = Form(..., description="Type of input: text, image, or audio"),
-    model: str = Form(..., description="Model to use"),
-    text: str = Form(None, description="Text input (if input_type is text)"),
-    file: UploadFile = File(None, description="File input (for image or audio)"),
-    encoding_format: str = Form("float", description="Encoding format"),
-    dimensions: int = Form(None, description="Number of dimensions"),
-    user: str = Form(None, description="User identifier")
-) -> EmbeddingResponse:
-    """
-    Create embeddings for multimodal inputs (text, image, or audio)
-    """
-    try:
-        if not embedding_manager.config.enable_embeddings:
-            raise HTTPException(
-                status_code=503,
-                detail="Embeddings functionality is disabled"
-            )
-
-        # Validate input based on type
-        if input_type == "text":
-            if not text:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Text input required when input_type is 'text'"
-                )
-            inputs = [text]
-            embeddings = await embedding_manager.get_text_embeddings(
-                texts=inputs,
-                model_name=model
-            )
-        
-        elif input_type == "image":
-            if not file:
-                raise HTTPException(
-                    status_code=400,
-                    detail="File input required when input_type is 'image'"
-                )
-            
-            # Validate file type
-            if not file.content_type or not file.content_type.startswith("image/"):
-                raise HTTPException(
-                    status_code=400,
-                    detail="File must be an image"
-                )
-            
-            # Read file data
-            file_data = await file.read()
-            embeddings = await embedding_manager.get_image_embeddings(
-                image_bytes=file_data,
-                model_name=model
-            )
-            inputs = [f"image:{file.filename}"]
-        
-        elif input_type == "audio":
-            if not file:
-                raise HTTPException(
-                    status_code=400,
-                    detail="File input required when input_type is 'audio'"
-                )
-            
-            # Validate file type
-            if not file.content_type or not file.content_type.startswith("audio/"):
-                raise HTTPException(
-                    status_code=400,
-                    detail="File must be an audio file"
-                )
-            
-            # Read file data
-            file_data = await file.read()
-            embeddings = await embedding_manager.get_audio_embeddings(
-                audio_bytes=file_data,
-                model_name=model
-            )
-            inputs = [f"audio:{file.filename}"]
-        
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="input_type must be 'text', 'image', or 'audio'"
-            )
-        
-        # Create response data
-        embedding_data = []
-        for i, embedding in enumerate(embeddings):
-            embedding_data.append(
-                EmbeddingData(
-                    embedding=embedding,
-                    index=i
-                )
-            )
-        
-        # Calculate usage statistics
-        if input_type == "text":
-            total_tokens = sum(len(text.split()) for text in inputs)
-        else:
-            # For non-text, use a rough estimate based on file size
-            total_tokens = len(file_data) // 100 if file_data else 1
-        
-        usage = EmbeddingUsage(
-            prompt_tokens=total_tokens,
-            total_tokens=total_tokens
-        )
-        
-        # Create response
-        response = EmbeddingResponse(
-            data=embedding_data,
-            model=model,
-            usage=usage
-        )
-        
-        logger.info(
-            f"Generated {input_type} embeddings using model '{model}'"
-        )
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error generating multimodal embeddings: {e}")
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/embeddings/models")

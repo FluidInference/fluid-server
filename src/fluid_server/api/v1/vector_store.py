@@ -4,9 +4,9 @@ Vector store management endpoints for LanceDB operations
 
 import logging
 import uuid
-from typing import Annotated, List, Optional
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ...managers.embedding_manager import EmbeddingManager
@@ -189,52 +189,24 @@ async def search_vectors(
             )
         
         # Generate query embedding based on query type
-        if request.query_type == "text":
-            if isinstance(request.query, bytes):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Text query must be a string"
-                )
-            
-            model_name = request.model or embedding_manager.config.embedding_model
-            query_embeddings = await embedding_manager.get_text_embeddings(
-                texts=[request.query],
-                model_name=model_name
-            )
-            query_vector = query_embeddings[0]
-            
-        elif request.query_type == "image":
-            if not isinstance(request.query, bytes):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Image query must be bytes"
-                )
-            
-            model_name = request.model or embedding_manager.config.multimodal_model
-            query_embeddings = await embedding_manager.get_image_embeddings(
-                image_bytes=request.query,
-                model_name=model_name
-            )
-            query_vector = query_embeddings[0]
-            
-        elif request.query_type == "audio":
-            if not isinstance(request.query, bytes):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Audio query must be bytes"
-                )
-            
-            query_embeddings = await embedding_manager.get_audio_embeddings(
-                audio_bytes=request.query,
-                model_name=request.model
-            )
-            query_vector = query_embeddings[0]
-            
-        else:
+        if request.query_type != "text":
             raise HTTPException(
                 status_code=400,
-                detail="query_type must be 'text', 'image', or 'audio'"
+                detail="Only text query_type is supported for embeddings"
             )
+
+        if isinstance(request.query, bytes):
+            raise HTTPException(
+                status_code=400,
+                detail="Text query must be a string"
+            )
+
+        model_name = request.model or embedding_manager.config.embedding_model
+        query_embeddings = await embedding_manager.get_text_embeddings(
+            texts=[request.query],
+            model_name=model_name
+        )
+        query_vector = query_embeddings[0]
         
         # Perform vector search
         search_results = await lancedb_client.search_vectors(
@@ -274,79 +246,6 @@ async def search_vectors(
             raise
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/search/multimodal")
-async def search_multimodal(
-    embedding_manager: Annotated[EmbeddingManager, Depends(get_embedding_manager)],
-    lancedb_client: Annotated[LanceDBClient, Depends(get_lancedb_client)],
-    collection: str = Form(..., description="Collection name"),
-    query_type: str = Form(..., description="Query type: text, image, or audio"),
-    limit: int = Form(10, description="Maximum results to return"),
-    text_query: str = Form(None, description="Text query (if query_type is text)"),
-    file_query: UploadFile = File(None, description="File query (for image or audio)"),
-    filter: str = Form(None, description="Optional filter condition"),
-    model: str = Form(None, description="Model to use")
-) -> VectorStoreSearchResponse:
-    """
-    Search for similar vectors using multimodal queries (text, image, or audio files)
-    """
-    try:
-        if not embedding_manager.config.enable_embeddings:
-            raise HTTPException(
-                status_code=503,
-                detail="Embeddings functionality is disabled"
-            )
-        
-        # Prepare query data based on type
-        if query_type == "text":
-            if not text_query:
-                raise HTTPException(
-                    status_code=400,
-                    detail="text_query required when query_type is 'text'"
-                )
-            query_data = text_query
-            
-        elif query_type in ["image", "audio"]:
-            if not file_query:
-                raise HTTPException(
-                    status_code=400,
-                    detail="file_query required for image/audio queries"
-                )
-            
-            # Validate file type
-            expected_prefix = query_type + "/"
-            if not file_query.content_type or not file_query.content_type.startswith(expected_prefix):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"File must be a {query_type} file"
-                )
-            
-            query_data = await file_query.read()
-            
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="query_type must be 'text', 'image', or 'audio'"
-            )
-        
-        # Create search request
-        search_request = VectorStoreSearchRequest(
-            collection=collection,
-            query=query_data,
-            query_type=query_type,
-            limit=limit,
-            filter=filter,
-            model=model
-        )
-        
-        # Perform search using the main search function
-        return await search_vectors(search_request, embedding_manager, lancedb_client)
-        
-    except Exception as e:
-        logger.error(f"Error in multimodal search: {e}")
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{collection}/{document_id}")
@@ -427,3 +326,4 @@ async def get_collection_stats(
     except Exception as e:
         logger.error(f"Error getting collection stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

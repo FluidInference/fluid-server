@@ -25,8 +25,8 @@ if (Test-Path "dist") {
 if (Test-Path "build") {
     Remove-Item -Path "build" -Recurse -Force
 }
-if (Test-Path "*.spec") {
-    Remove-Item -Path "*.spec" -Force
+if (Test-Path "fluid-server-x64.spec") {
+    Remove-Item -Path "fluid-server-x64.spec" -Force
 }
 
 # Install dependencies

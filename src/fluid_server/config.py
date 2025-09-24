@@ -27,10 +27,9 @@ class ServerConfig:
 
     # Embeddings configuration
     enable_embeddings: bool = True  # Enable embeddings functionality
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"  # Default text embedding model (384 dim) 22M parameters
-    embedding_device: str = "CPU"  # Device for embeddings: AUTO, CPU, GPU, NPU (CPU more stable for sentence-transformers)
+    embedding_model: str = "nomic-ai/nomic-embed-text-v1.5/nomic-embed-text-v1.5.Q4_K_M.gguf"  # Default llama-cpp text embedding model
+    embedding_device: str = "CPU"  # Device for embeddings: CPU or GPU (controls llama-cpp n_gpu_layers)
     embeddings_db_name: str = "embeddings"  # LanceDB database name
-    multimodal_model: str = "openai/clip-vit-base-patch32"  # For image embeddings
     
     # Features
     warm_up: bool = True  # Warm up models on startup

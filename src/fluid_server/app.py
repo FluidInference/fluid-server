@@ -53,14 +53,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             embedding_manager = EmbeddingManager(config)
             await embedding_manager.initialize()
-            
+
             # Initialize LanceDB client
             lancedb_client = LanceDBClient(
                 db_path=config.embeddings_db_path,
                 db_name=config.embeddings_db_name
             )
             await lancedb_client.initialize()
-            
+
             logger.info("Embedding system initialized successfully")
         except Exception as e:
             logger.warning(f"Failed to initialize embedding system: {e}")
@@ -120,7 +120,7 @@ def create_app(config: ServerConfig) -> FastAPI:
     from .api.v1.audio import get_runtime_manager as audio_get_runtime_manager
     from .api.v1.chat import get_runtime_manager as chat_get_runtime_manager
     from .api.v1.models import get_runtime_manager as models_get_runtime_manager
-    
+
     # Import embedding dependencies if they exist
     try:
         from .api.v1.embeddings import get_embedding_manager, get_runtime_manager as embeddings_get_runtime_manager
@@ -133,11 +133,11 @@ def create_app(config: ServerConfig) -> FastAPI:
     def get_runtime_manager() -> RuntimeManager:
         """Get runtime manager dependency"""
         return app.state.runtime_manager
-    
+
     def get_embedding_manager_dep() -> EmbeddingManager:
         """Get embedding manager dependency"""
         return app.state.embedding_manager
-    
+
     def get_lancedb_client_dep() -> LanceDBClient:
         """Get LanceDB client dependency"""
         return app.state.lancedb_client
@@ -149,7 +149,7 @@ def create_app(config: ServerConfig) -> FastAPI:
         audio_get_runtime_manager: get_runtime_manager,
         health_get_runtime_manager: get_runtime_manager,
     }
-    
+
     # Add embedding dependencies if available
     if EMBEDDINGS_AVAILABLE:
         overrides.update({
@@ -158,7 +158,7 @@ def create_app(config: ServerConfig) -> FastAPI:
             vs_get_embedding_manager: get_embedding_manager_dep,
             get_lancedb_client: get_lancedb_client_dep,
         })
-    
+
     app.dependency_overrides = overrides
 
     # Include routers
@@ -166,7 +166,7 @@ def create_app(config: ServerConfig) -> FastAPI:
     app.include_router(chat.router)
     app.include_router(models.router)
     app.include_router(audio.router)
-    
+
     # Include embedding routers if embeddings are available
     if EMBEDDINGS_AVAILABLE and config.enable_embeddings:
         app.include_router(embeddings.router)
