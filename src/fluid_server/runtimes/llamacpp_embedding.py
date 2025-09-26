@@ -13,6 +13,8 @@ from .base_embedding import BaseEmbeddingRuntime, EmbeddingType
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_EMBEDDING_REPO_ID = "unsloth/embeddinggemma-300m-GGUF"
+DEFAULT_EMBEDDING_FILENAME = "embeddinggemma-300M-BF16.gguf"
 
 class LlamaCppEmbeddingRuntime(BaseEmbeddingRuntime):
     """llama-cpp runtime for generating text embeddings from GGUF models"""
@@ -46,6 +48,12 @@ class LlamaCppEmbeddingRuntime(BaseEmbeddingRuntime):
 
         self._Llama = Llama
         repo_id, filename, model_file = self._resolve_model_sources()
+
+        if repo_id is None and model_file is None:
+            repo_id = DEFAULT_EMBEDDING_REPO_ID
+            filename = DEFAULT_EMBEDDING_FILENAME
+        elif repo_id == DEFAULT_EMBEDDING_REPO_ID and filename is None:
+            filename = DEFAULT_EMBEDDING_FILENAME
 
         load_kwargs: dict[str, Any] = {
             "embedding": True,
@@ -191,4 +199,4 @@ class LlamaCppEmbeddingRuntime(BaseEmbeddingRuntime):
                 return repo_id, filename, None
             return self.model_id, None, None
 
-        return None, None, None
+        return DEFAULT_EMBEDDING_REPO_ID, DEFAULT_EMBEDDING_FILENAME, None

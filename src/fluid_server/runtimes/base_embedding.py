@@ -12,8 +12,6 @@ from enum import Enum
 class EmbeddingType(Enum):
     """Supported embedding types"""
     TEXT = "text"
-    IMAGE = "image"
-    AUDIO = "audio"
 
 
 class BaseEmbeddingRuntime(ABC):
@@ -52,14 +50,14 @@ class BaseEmbeddingRuntime(ABC):
     @abstractmethod
     async def embed(
         self, 
-        inputs: Union[str, List[str], bytes], 
+        inputs: Union[str, List[str]], 
         embedding_type: EmbeddingType
     ) -> List[List[float]]:
         """
         Generate embeddings for the given inputs
         
         Args:
-            inputs: Text string(s), image bytes, or audio bytes
+            inputs: Text string(s)
             embedding_type: Type of embedding to generate
             
         Returns:

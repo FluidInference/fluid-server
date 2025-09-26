@@ -4,7 +4,7 @@ OpenAI-compatible embeddings endpoint
 
 import logging
 import time
-from typing import Annotated
+from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -39,7 +39,7 @@ async def create_embeddings(
 ) -> EmbeddingResponse:
     """
     Create embeddings for text inputs (OpenAI-compatible)
-    
+
     This endpoint is compatible with OpenAI's embeddings API and can be used
     as a drop-in replacement.
     """
@@ -53,7 +53,7 @@ async def create_embeddings(
 
         # Ensure input is a list
         inputs = request.input if isinstance(request.input, list) else [request.input]
-        
+
         # Generate embeddings
         start_time = time.time()
         embeddings = await embedding_manager.get_text_embeddings(
@@ -61,7 +61,7 @@ async def create_embeddings(
             model_name=request.model
         )
         processing_time = time.time() - start_time
-        
+
         # Create response data
         embedding_data = []
         for i, embedding in enumerate(embeddings):
@@ -71,28 +71,28 @@ async def create_embeddings(
                     index=i
                 )
             )
-        
+
         # Calculate usage statistics (approximate)
         total_tokens = sum(len(text.split()) for text in inputs)
         usage = EmbeddingUsage(
             prompt_tokens=total_tokens,
             total_tokens=total_tokens
         )
-        
+
         # Create response
         response = EmbeddingResponse(
             data=embedding_data,
             model=request.model,
             usage=usage
         )
-        
+
         logger.info(
             f"Generated embeddings for {len(inputs)} inputs "
             f"using model '{request.model}' in {processing_time:.2f}s"
         )
-        
+
         return response
-        
+
     except Exception as e:
         logger.error(f"Error generating embeddings: {e}")
         if isinstance(e, HTTPException):
@@ -114,15 +114,15 @@ async def create_embeddings_batch(
                 status_code=503,
                 detail="Embeddings functionality is disabled"
             )
-        
+
         responses = []
         for request in requests:
             # Process each request individually but return as batch
             response = await create_embeddings(request, embedding_manager)
             responses.append(response)
-        
+
         return responses
-        
+
     except Exception as e:
         logger.error(f"Error in batch embeddings: {e}")
         if isinstance(e, HTTPException):
@@ -140,7 +140,7 @@ async def list_embedding_models(
     """
     try:
         info = embedding_manager.get_embedding_info()
-        
+
         models = []
         for model_type, model_list in info["available_models"].items():
             for model_name in model_list:
@@ -151,12 +151,12 @@ async def list_embedding_models(
                     "owned_by": "fluid-server",
                     "model_type": f"embedding_{model_type}"
                 })
-        
+
         return JSONResponse(content={
             "object": "list",
             "data": models
         })
-        
+
     except Exception as e:
         logger.error(f"Error listing embedding models: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -172,7 +172,7 @@ async def get_embedding_info(
     try:
         info = embedding_manager.get_embedding_info()
         return JSONResponse(content=info)
-        
+
     except Exception as e:
         logger.error(f"Error getting embedding info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
