@@ -2,16 +2,16 @@
 LanceDB client for vector storage and retrieval
 """
 
-import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
 import asyncio
+import logging
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any
 
 try:
     import lancedb
-    from lancedb.pydantic import LanceModel, Vector
     from lancedb.embeddings import get_registry
+    from lancedb.pydantic import LanceModel, Vector
     LANCEDB_AVAILABLE = True
 except ImportError:
     LANCEDB_AVAILABLE = False
@@ -25,13 +25,13 @@ logger = logging.getLogger(__name__)
 
 class VectorDocument:
     """Base document class for vector storage"""
-    
+
     def __init__(
-        self, 
-        id: str, 
-        content: str, 
-        vector: List[float], 
-        metadata: Optional[Dict[str, Any]] = None,
+        self,
+        id: str,
+        content: str,
+        vector: list[float],
+        metadata: dict[str, Any] | None = None,
         content_type: str = "text"
     ):
         self.id = id
@@ -40,7 +40,7 @@ class VectorDocument:
         self.metadata = metadata or {}
         self.content_type = content_type
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert document to dictionary for storage"""
         return {
             "id": self.id,
@@ -51,7 +51,7 @@ class VectorDocument:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VectorDocument":
+    def from_dict(cls, data: dict[str, Any]) -> "VectorDocument":
         """Create document from dictionary"""
         return cls(
             id=data["id"],
@@ -73,7 +73,7 @@ class LanceDBClient:
         """Get or create dedicated database thread pool"""
         if cls._db_executor is None:
             cls._db_executor = ThreadPoolExecutor(
-                max_workers=2, 
+                max_workers=2,
                 thread_name_prefix="LanceDB"
             )
         return cls._db_executor
@@ -88,12 +88,12 @@ class LanceDBClient:
         """
         if not LANCEDB_AVAILABLE:
             raise ImportError("LanceDB is not available. Install with: pip install lancedb")
-            
+
         self.db_path = db_path
         self.db_name = db_name
         self.db: Any = None
-        self._tables: Dict[str, Any] = {}
-        
+        self._tables: dict[str, Any] = {}
+
         # Ensure database directory exists
         self.db_path.mkdir(parents=True, exist_ok=True)
 
@@ -116,8 +116,8 @@ class LanceDBClient:
         return lancedb.connect(db_uri)
 
     async def create_collection(
-        self, 
-        collection_name: str, 
+        self,
+        collection_name: str,
         dimension: int,
         content_type: str = "text",
         overwrite: bool = False
@@ -147,8 +147,8 @@ class LanceDBClient:
             raise
 
     def _create_collection_sync(
-        self, 
-        collection_name: str, 
+        self,
+        collection_name: str,
         dimension: int,
         content_type: str,
         overwrite: bool
@@ -159,7 +159,7 @@ class LanceDBClient:
 
         # Check if collection exists
         existing_tables = self.db.table_names()
-        
+
         if collection_name in existing_tables:
             if overwrite:
                 # Drop existing table
@@ -179,19 +179,19 @@ class LanceDBClient:
             "metadata": {},
             "content_type": content_type
         }]
-        
+
         table = self.db.create_table(
-            collection_name, 
+            collection_name,
             data=initial_data,
             mode="create"
         )
-        
+
         # Remove placeholder record
         table.delete("id = 'placeholder'")
-        
+
         self._tables[collection_name] = table
 
-    async def list_collections(self) -> List[str]:
+    async def list_collections(self) -> list[str]:
         """List all collections in the database"""
         try:
             loop = asyncio.get_event_loop()
@@ -203,14 +203,14 @@ class LanceDBClient:
             logger.error(f"Failed to list collections: {e}")
             raise
 
-    def _list_collections_sync(self) -> List[str]:
+    def _list_collections_sync(self) -> list[str]:
         """Synchronous collection listing"""
         return self.db.table_names()
 
     async def insert_documents(
-        self, 
-        collection_name: str, 
-        documents: List[VectorDocument]
+        self,
+        collection_name: str,
+        documents: list[VectorDocument]
     ) -> None:
         """
         Insert documents into a collection
@@ -233,9 +233,9 @@ class LanceDBClient:
             raise
 
     def _insert_documents_sync(
-        self, 
-        collection_name: str, 
-        documents: List[VectorDocument]
+        self,
+        collection_name: str,
+        documents: list[VectorDocument]
     ) -> None:
         """Synchronous document insertion"""
         if collection_name not in self._tables:
@@ -246,17 +246,17 @@ class LanceDBClient:
 
         # Convert documents to dictionaries
         data = [doc.to_dict() for doc in documents]
-        
+
         # Insert data
         table.add(data)
 
     async def search_vectors(
         self,
         collection_name: str,
-        query_vector: List[float],
+        query_vector: list[float],
         limit: int = 10,
-        filter_condition: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        filter_condition: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Search for similar vectors
         
@@ -286,10 +286,10 @@ class LanceDBClient:
     def _search_vectors_sync(
         self,
         collection_name: str,
-        query_vector: List[float],
+        query_vector: list[float],
         limit: int,
-        filter_condition: Optional[str]
-    ) -> List[Dict[str, Any]]:
+        filter_condition: str | None
+    ) -> list[dict[str, Any]]:
         """Synchronous vector search"""
         if collection_name not in self._tables:
             table = self.db.open_table(collection_name)
@@ -299,26 +299,26 @@ class LanceDBClient:
 
         # Build search query
         search = table.search(query_vector).limit(limit)
-        
+
         if filter_condition:
             search = search.where(filter_condition)
-        
+
         # Execute search and convert to list
         results = search.to_list()
-        
+
         # Add similarity scores (LanceDB returns _distance, we convert to similarity)
         for result in results:
             if '_distance' in result:
                 # Convert distance to similarity score (0-1, higher is more similar)
                 result['similarity_score'] = 1.0 / (1.0 + result['_distance'])
-        
+
         return results
 
     async def get_document(
-        self, 
-        collection_name: str, 
+        self,
+        collection_name: str,
         document_id: str
-    ) -> Optional[VectorDocument]:
+    ) -> VectorDocument | None:
         """
         Get a specific document by ID
         
@@ -337,20 +337,20 @@ class LanceDBClient:
                 collection_name,
                 document_id
             )
-            
+
             if result:
                 return VectorDocument.from_dict(result)
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get document '{document_id}' from '{collection_name}': {e}")
             raise
 
     def _get_document_sync(
-        self, 
-        collection_name: str, 
+        self,
+        collection_name: str,
         document_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Synchronous document retrieval"""
         if collection_name not in self._tables:
             table = self.db.open_table(collection_name)
@@ -360,12 +360,12 @@ class LanceDBClient:
 
         # Search for document by ID
         results = table.search().where(f"id = '{document_id}'").to_list()
-        
+
         return results[0] if results else None
 
     async def delete_document(
-        self, 
-        collection_name: str, 
+        self,
+        collection_name: str,
         document_id: str
     ) -> bool:
         """
@@ -391,8 +391,8 @@ class LanceDBClient:
             raise
 
     def _delete_document_sync(
-        self, 
-        collection_name: str, 
+        self,
+        collection_name: str,
         document_id: str
     ) -> bool:
         """Synchronous document deletion"""
@@ -406,7 +406,7 @@ class LanceDBClient:
         table.delete(f"id = '{document_id}'")
         return True  # LanceDB doesn't return deletion count
 
-    async def get_collection_stats(self, collection_name: str) -> Dict[str, Any]:
+    async def get_collection_stats(self, collection_name: str) -> dict[str, Any]:
         """
         Get statistics for a collection
         
@@ -427,7 +427,7 @@ class LanceDBClient:
             logger.error(f"Failed to get stats for collection '{collection_name}': {e}")
             raise
 
-    def _get_collection_stats_sync(self, collection_name: str) -> Dict[str, Any]:
+    def _get_collection_stats_sync(self, collection_name: str) -> dict[str, Any]:
         """Synchronous collection stats retrieval"""
         if collection_name not in self._tables:
             table = self.db.open_table(collection_name)
@@ -438,7 +438,7 @@ class LanceDBClient:
         # Get table info
         num_rows = table.count_rows()
         schema = table.schema
-        
+
         return {
             "collection_name": collection_name,
             "num_documents": num_rows,

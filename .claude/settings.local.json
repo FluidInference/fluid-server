@@ -24,7 +24,9 @@
       "Bash(del:*)",
       "Bash(gh release:*)",
       "Bash(uv pip:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(uv show:*)",
+      "Bash(move llamacpp_embedding.py sentence_transformer_embedding.py)"
     ],
     "deny": [],
     "ask": []

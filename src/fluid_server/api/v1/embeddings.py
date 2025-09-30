@@ -4,19 +4,14 @@ OpenAI-compatible embeddings endpoint
 
 import logging
 import time
-from typing import Annotated, List
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ...managers.embedding_manager import EmbeddingManager
 from ...managers.runtime_manager import RuntimeManager
-from ...models.openai import (
-    EmbeddingRequest,
-    EmbeddingResponse,
-    EmbeddingData,
-    EmbeddingUsage
-)
+from ...models.openai import EmbeddingData, EmbeddingRequest, EmbeddingResponse, EmbeddingUsage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1")
@@ -102,9 +97,9 @@ async def create_embeddings(
 
 @router.post("/embeddings/batch")
 async def create_embeddings_batch(
-    requests: List[EmbeddingRequest],
+    requests: list[EmbeddingRequest],
     embedding_manager: Annotated[EmbeddingManager, Depends(get_embedding_manager)]
-) -> List[EmbeddingResponse]:
+) -> list[EmbeddingResponse]:
     """
     Create embeddings for multiple requests in batch
     """

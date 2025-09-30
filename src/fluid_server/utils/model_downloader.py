@@ -5,7 +5,7 @@ Model downloading utilities for automatic model management
 import logging
 from pathlib import Path
 
-from huggingface_hub import HfApi, hf_hub_download, snapshot_download
+from huggingface_hub import HfApi, snapshot_download
 
 logger = logging.getLogger(__name__)
 

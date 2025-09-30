@@ -244,7 +244,7 @@ class RuntimeManager:
         # Determine runtime type based on model format
         runtime_type = ModelDiscovery.get_llm_runtime_type(model_path, model_to_load)
         logger.info(f"Loading LLM model '{model_to_load}' using {runtime_type.upper()} runtime")
-        
+
         # Type assertion for type checker - model_path is guaranteed to be Path here
         assert model_path is not None, "model_path should not be None at this point"
         model_path_resolved: Path = model_path  # Explicit type narrowing
@@ -489,10 +489,10 @@ class RuntimeManager:
     async def _cleanup_memory(self) -> None:
         """Force cleanup of memory after model unloading"""
         import gc
-        
+
         # Force garbage collection
         gc.collect()
-        
+
         # Try to clear CUDA cache if available
         try:
             import torch
@@ -501,7 +501,7 @@ class RuntimeManager:
                 logger.debug("CUDA cache cleared")
         except ImportError:
             pass
-        
+
         # Try to clear OpenVINO cache if possible
         try:
             import openvino as ov
@@ -509,7 +509,7 @@ class RuntimeManager:
             logger.debug("OpenVINO memory cleanup attempted")
         except ImportError:
             pass
-        
+
         logger.debug("Memory cleanup completed")
 
     async def unload_all(self) -> None:

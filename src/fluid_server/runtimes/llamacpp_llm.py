@@ -11,6 +11,7 @@ from threading import Lock
 from typing import Any
 
 from .base import BaseRuntime
+
 try:
     # Optional mapping for default HF repos and GGUF filenames
     from ..utils.model_downloader import DEFAULT_MODEL_REPOS, GGUF_FILE_MAPPINGS
@@ -49,7 +50,7 @@ class LlamaCppRuntime(BaseRuntime):
             self.Llama = Llama
 
             start_time = time.time()
-            
+
             # Parse repo_id and filename from model name or use mappings
             repo_id, gguf_filename = self._parse_model_identifier()
 
@@ -72,7 +73,7 @@ class LlamaCppRuntime(BaseRuntime):
             else:
                 # CPU-only mode
                 n_gpu_layers = 0
-            
+
             # Use 0 to auto-detect context size from GGUF metadata (same as llama.cpp server)
             n_ctx = 0
 
@@ -132,7 +133,7 @@ class LlamaCppRuntime(BaseRuntime):
         # Check if model_name contains '/' indicating repo format
         if "/" in self.model_name:
             parts = self.model_name.split("/")
-            
+
             if len(parts) >= 3:
                 # Format: repo_owner/repo_name/filename.gguf
                 repo_id = "/".join(parts[:-1])  # Everything except the last part
@@ -143,11 +144,11 @@ class LlamaCppRuntime(BaseRuntime):
                 repo_id = self.model_name
                 filename = None  # Let llama-cpp auto-detect
                 return repo_id, filename
-        
+
         # Fallback to mappings for backward compatibility
         repo_id = DEFAULT_MODEL_REPOS.get("llm", {}).get(self.model_name)
         filename = GGUF_FILE_MAPPINGS.get(self.model_name)
-        
+
         return repo_id, filename
 
     def _generate_sync(self, prompt: str, max_tokens: int, temperature: float, top_p: float) -> str:

@@ -144,18 +144,18 @@ class ModelDiscovery:
         """
         # Check for device-specific QNN models (e.g., snapdragon-x-elite)
         device_variants = ["snapdragon-x-elite"]  # Can be expanded in the future
-        
+
         for device in device_variants:
             device_path = path / device
             if device_path.exists() and device_path.is_dir():
                 # Check for encoder and decoder ONNX models
                 encoder_path = device_path / "encoder" / "model.onnx"
                 decoder_path = device_path / "decoder" / "model.onnx"
-                
+
                 if encoder_path.exists() and decoder_path.exists():
                     logger.debug(f"Found QNN model for device: {device}")
                     return True
-        
+
         return False
 
     @staticmethod
@@ -201,14 +201,14 @@ class ModelDiscovery:
             else:
                 logger.warning(f"Model validation failed for {model_path}")
                 return None
-        
+
         # For LLM models not found locally, assume they're GGUF models - return cache path
         if model_type == "llm":
             # Return the base model cache path for GGUF models
             cache_path = base_path / model_type / "cache"
             cache_path.mkdir(parents=True, exist_ok=True)  # Ensure cache directory exists
             return cache_path
-        
+
         # For non-LLM models, they must exist locally
         logger.debug(f"Model path does not exist: {model_path}")
         return None
@@ -230,13 +230,13 @@ class ModelDiscovery:
             gguf_files = list(model_path.glob("*.gguf"))
             if gguf_files:
                 return "llamacpp"
-        
+
         # Check if model_name suggests this is not a local directory (likely GGUF)
         if model_name:
             # If it contains slashes or doesn't exist locally, assume GGUF
             if "/" in model_name or not model_path.exists():
                 return "llamacpp"
-        
+
         # Default to OpenVINO for local directory models
         return "openvino"
 
@@ -253,12 +253,12 @@ class ModelDiscovery:
         """
         # Import platform utilities
         from .platform_utils import get_architecture, is_runtime_available
-        
+
         # Check for QNN models first (more specific structure) and only on ARM64
-        if (get_architecture() == "arm64" and 
-            is_runtime_available("qnn") and 
+        if (get_architecture() == "arm64" and
+            is_runtime_available("qnn") and
             ModelDiscovery._validate_qnn_whisper_model(model_path)):
             return "qnn"
-        
+
         # Default to OpenVINO for other valid Whisper models
         return "openvino"

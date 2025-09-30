@@ -1,29 +1,28 @@
 """
-Embedding manager for llama-cpp text embeddings
+Embedding manager for sentence-transformers text embeddings
 """
 
 import asyncio
 import logging
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from ..config import ServerConfig
 from ..runtimes.base_embedding import BaseEmbeddingRuntime, EmbeddingType
-from ..runtimes.llamacpp_embedding import LlamaCppEmbeddingRuntime
+from ..runtimes.sentence_transformer_embedding import SentenceTransformerEmbeddingRuntime
 
 logger = logging.getLogger(__name__)
 
 
 class EmbeddingManager:
-    """Manage llama-cpp based text embedding runtimes"""
+    """Manage sentence-transformers based text embedding runtimes"""
 
     def __init__(self, config: ServerConfig) -> None:
         self.config = config
 
         self.text_runtime: BaseEmbeddingRuntime | None = None
         self.loaded_text_model: str | None = None
-        self.available_models: Dict[str, List[str]] = {"text": []}
+        self.available_models: dict[str, list[str]] = {"text": []}
 
         self._idle_task: asyncio.Task | None = None
         self._load_lock = asyncio.Lock()
@@ -44,13 +43,8 @@ class EmbeddingManager:
             logger.info("Embeddings disabled in configuration")
             return
 
-        embeddings_dir = self.config.model_path / "embeddings"
-        embeddings_dir.mkdir(parents=True, exist_ok=True)
-
-        discovered = self._discover_text_models(embeddings_dir)
-        if self.config.embedding_model not in discovered:
-            discovered.append(self.config.embedding_model)
-        self.available_models["text"] = list(dict.fromkeys(discovered))  # Preserve order
+        # Add the configured embedding model to available models
+        self.available_models["text"] = [self.config.embedding_model]
 
         self._schedule_idle_cleanup()
 
@@ -58,17 +52,6 @@ class EmbeddingManager:
             logger.info("Starting background embedding model warm-up...")
             asyncio.create_task(self._warm_up_models())
 
-    def _discover_text_models(self, embeddings_dir: Path) -> List[str]:
-        """Discover local llama-cpp embedding models"""
-        models: List[str] = []
-
-        for entry in embeddings_dir.iterdir():
-            if entry.is_dir() and any(entry.glob("*.gguf")):
-                models.append(entry.name.replace("_", "/"))
-            elif entry.is_file() and entry.suffix == ".gguf":
-                models.append(entry.name)
-
-        return models
 
     async def _warm_up_models(self) -> None:
         """Load the default embedding model in the background"""
@@ -87,10 +70,10 @@ class EmbeddingManager:
 
     async def get_text_embeddings(
         self,
-        texts: Union[str, List[str]],
-        model_name: Optional[str] = None,
-    ) -> List[List[float]]:
-        """Generate text embeddings using llama-cpp"""
+        texts: str | list[str],
+        model_name: str | None = None,
+    ) -> list[list[float]]:
+        """Generate text embeddings using sentence-transformers"""
         if not self.config.enable_embeddings:
             raise RuntimeError("Embeddings are disabled")
 
@@ -126,7 +109,7 @@ class EmbeddingManager:
             model_dir = self.config.model_path / "embeddings" / model_name.replace("/", "_")
             model_dir.mkdir(parents=True, exist_ok=True)
 
-            runtime = LlamaCppEmbeddingRuntime(
+            runtime = SentenceTransformerEmbeddingRuntime(
                 model_id=model_name,
                 model_path=model_dir,
                 cache_dir=self.config.cache_dir_resolved,

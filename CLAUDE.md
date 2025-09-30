@@ -104,16 +104,15 @@ curl -X POST http://localhost:8080/v1/vector_store/insert -H "Content-Type: appl
 - `v1/chat.py` - OpenAI-compatible chat completions with streaming support
 - `v1/audio.py` - Audio transcription endpoints
 - `v1/models.py` - Model listing and management
-- `v1/embeddings.py` - Text and multimodal embeddings generation
+- `v1/embeddings.py` - Text embeddings generation
 - `v1/vector_store.py` - LanceDB vector database operations
 - `health.py` - Health check with OpenVINO status
 
 **Storage and Embeddings (`storage/`, `managers/`)**:
-- `LanceDBClient` - Vector database client for multimodal storage
-- `EmbeddingManager` - Manages text and multimodal embedding models
+- `LanceDBClient` - Vector database client for vector storage
+- `EmbeddingManager` - Manages text embedding models
 - `BaseEmbeddingRuntime` - Abstract base for embedding runtimes
-- `OpenVINOEmbeddingRuntime` - Text embeddings using OpenVINO backend
-- `WhisperEmbeddingRuntime` - Audio embeddings for semantic search
+- `SentenceTransformerEmbeddingRuntime` - Text embeddings using sentence-transformers backend
 
 ### Model Organization
 
@@ -148,7 +147,7 @@ data/
 - **OpenAI Compatibility**: Request/response formats match OpenAI API for drop-in replacement
 - **PyInstaller Ready**: Handles frozen executable detection for simplified deployment
 - **Graceful Degradation**: Falls back to alternative runtimes if primary backend unavailable
-- **Vector Database Integration**: LanceDB provides multimodal storage for embeddings, text, and metadata
+- **Vector Database Integration**: LanceDB provides storage for embeddings, text, and metadata
 - **Memory Management**: Configurable idle timeout and memory limits prevent resource exhaustion
 
 ### Configuration
@@ -173,9 +172,9 @@ Command-line arguments override configuration defaults. The server validates mod
 - **Error Handling**: All runtimes implement graceful loading/unloading with proper resource cleanup
 - **Testing Architecture**: ARM64 systems test QNN backend, x64 Intel systems test OpenVINO backend
 - **Vector Database**: LanceDB integration requires embedding models to be loaded before vector operations
-- **Multimodal Support**: Text embeddings via sentence-transformers, image embeddings via CLIP, audio embeddings via Whisper
+- **Text Embeddings**: Text embeddings via sentence-transformers models
 - **Build System**: PyInstaller creates single-file executable with architecture detection and runtime selection
-- **Model Loading Issues**: If models fail to load with "Failed to create llama_context", check GPU memory availability and consider reducing model size or switching to CPU backend
+- **Model Loading Issues**: If models fail to load, check GPU memory availability and consider reducing model size or switching to CPU backend
 
 ## Code Style Guidelines
 

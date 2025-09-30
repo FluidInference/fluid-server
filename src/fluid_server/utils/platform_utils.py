@@ -5,7 +5,7 @@ Platform detection utilities for cross-architecture compatibility
 import logging
 import os
 import platform
-from typing import List, Literal
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +22,11 @@ def get_architecture() -> ArchType:
     """
     machine = platform.machine().lower()
     processor = platform.processor().lower()
-    
+
     # Check environment variables that might indicate architecture
     processor_arch = os.environ.get("PROCESSOR_ARCHITECTURE", "").lower()
     processor_identifier = os.environ.get("PROCESSOR_IDENTIFIER", "").lower()
-    
+
     # ARM64 detection
     if (
         machine in ["arm64", "aarch64"] or
@@ -36,7 +36,7 @@ def get_architecture() -> ArchType:
         ("arm" in processor_identifier and "64" in processor_identifier)
     ):
         return "arm64"
-    
+
     # x64 detection
     if (
         machine in ["amd64", "x86_64", "x64"] or
@@ -45,12 +45,12 @@ def get_architecture() -> ArchType:
         "x86" in machine
     ):
         return "x64"
-    
+
     logger.warning(f"Unknown architecture detected: machine={machine}, processor={processor}")
     return "unknown"
 
 
-def get_compatible_runtimes(arch: ArchType = None) -> List[RuntimeType]:
+def get_compatible_runtimes(arch: ArchType = None) -> list[RuntimeType]:
     """
     Get list of runtimes that should work on the given architecture
     
@@ -62,19 +62,19 @@ def get_compatible_runtimes(arch: ArchType = None) -> List[RuntimeType]:
     """
     if arch is None:
         arch = get_architecture()
-    
+
     compatible = []
-    
+
     # OpenVINO should work on both architectures (different devices)
     compatible.append("openvino")
-    
+
     # llama-cpp should work on both (different backends)
     compatible.append("llamacpp")
-    
+
     # QNN only works on ARM64 Windows devices
     if arch == "arm64":
         compatible.append("qnn")
-    
+
     return compatible
 
 
@@ -90,7 +90,7 @@ def get_preferred_device(arch: ArchType = None) -> dict:
     """
     if arch is None:
         arch = get_architecture()
-    
+
     if arch == "arm64":
         return {
             "llm": "CPU",  # ARM64 may not have full GPU support yet
@@ -118,7 +118,7 @@ def is_runtime_available(runtime_type: RuntimeType, arch: ArchType = None) -> bo
     """
     if arch is None:
         arch = get_architecture()
-    
+
     return runtime_type in get_compatible_runtimes(arch)
 
 
@@ -127,14 +127,14 @@ def log_platform_info():
     arch = get_architecture()
     compatible = get_compatible_runtimes(arch)
     devices = get_preferred_device(arch)
-    
+
     logger.info(f"Platform: {platform.system()} {platform.release()}")
     logger.info(f"Architecture: {arch}")
     logger.info(f"Machine: {platform.machine()}")
     logger.info(f"Processor: {platform.processor()}")
     logger.info(f"Compatible runtimes: {compatible}")
     logger.info(f"Preferred devices: {devices}")
-    
+
     # Log environment variables for debugging
     env_vars = ["PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "PROCESSOR_ARCHITEW6432"]
     for var in env_vars:

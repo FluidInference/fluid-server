@@ -11,10 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .api import health
-from .api.v1 import audio, chat, models, embeddings, vector_store
+from .api.v1 import audio, chat, embeddings, models, vector_store
 from .config import ServerConfig
-from .managers.runtime_manager import RuntimeManager
 from .managers.embedding_manager import EmbeddingManager
+from .managers.runtime_manager import RuntimeManager
 from .storage.lancedb_client import LanceDBClient
 
 logger = logging.getLogger(__name__)
@@ -123,8 +123,10 @@ def create_app(config: ServerConfig) -> FastAPI:
 
     # Import embedding dependencies if they exist
     try:
-        from .api.v1.embeddings import get_embedding_manager, get_runtime_manager as embeddings_get_runtime_manager
-        from .api.v1.vector_store import get_embedding_manager as vs_get_embedding_manager, get_lancedb_client
+        from .api.v1.embeddings import get_embedding_manager
+        from .api.v1.embeddings import get_runtime_manager as embeddings_get_runtime_manager
+        from .api.v1.vector_store import get_embedding_manager as vs_get_embedding_manager
+        from .api.v1.vector_store import get_lancedb_client
         EMBEDDINGS_AVAILABLE = True
     except ImportError:
         EMBEDDINGS_AVAILABLE = False

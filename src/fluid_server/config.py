@@ -27,10 +27,10 @@ class ServerConfig:
 
     # Embeddings configuration
     enable_embeddings: bool = True  # Enable embeddings functionality
-    embedding_model: str = "nomic-ai/nomic-embed-text-v1.5/nomic-embed-text-v1.5.Q4_K_M.gguf"  # Default llama-cpp text embedding model
-    embedding_device: str = "CPU"  # Device for embeddings: CPU or GPU (controls llama-cpp n_gpu_layers)
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"  # Default sentence-transformers embedding model
+    embedding_device: str = "CPU"  # Device for embeddings: CPU or GPU (controls torch device)
     embeddings_db_name: str = "embeddings"  # LanceDB database name
-    
+
     # Features
     warm_up: bool = True  # Warm up models on startup
     max_memory_gb: float = 4.0  # Memory limit

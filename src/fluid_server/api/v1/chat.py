@@ -50,11 +50,11 @@ async def chat_completions(
     try:
         # Check if the model is in available models OR if it can be downloaded
         available_llm_models = runtime_manager.available_models.get("llm", [])
-        
+
         # Import the constants to check if model can be downloaded
         from ...utils.model_downloader import DEFAULT_MODEL_REPOS
         model_can_be_downloaded = completion_request.model in DEFAULT_MODEL_REPOS.get("llm", {})
-        
+
         if completion_request.model not in available_llm_models and not model_can_be_downloaded:
             raise HTTPException(
                 status_code=400,
@@ -181,15 +181,15 @@ async def _stream_chat_completion(
 
     token_stream = None
     stream_cancelled = False
-    
+
     try:
         response_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
-        
+
         # Check initial connection state
         if await http_request.is_disconnected():
             logger.info("Client already disconnected before streaming started")
             return
-        
+
         # Send initial chunk
         initial_chunk = ChatCompletionStreamResponse(
             id=response_id,
@@ -209,36 +209,36 @@ async def _stream_chat_completion(
             temperature=request.temperature or 0.7,
             top_p=request.top_p or 0.95,
         )
-        
+
         # Buffer for sentence-based streaming
         sentence_buffer = ""
         last_flush_time = time.time()
         last_heartbeat_time = time.time()
         last_disconnect_check = time.time()
         token_count = 0
-        
+
         # Stream tokens with heartbeat and sentence buffering
         async for token in token_stream:
             token_count += 1
             current_time = time.time()
-            
+
             # Check for client disconnection more frequently during long generations
             # Check every 10 tokens or every 2 seconds, whichever comes first
             should_check_disconnect = (
-                token_count % 10 == 0 or 
+                token_count % 10 == 0 or
                 (current_time - last_disconnect_check >= 2.0)
             )
-            
+
             if should_check_disconnect:
                 if await http_request.is_disconnected():
                     logger.info(f"Client disconnected after {token_count} tokens, cancelling stream")
                     stream_cancelled = True
                     break
                 last_disconnect_check = current_time
-                
+
             # Add token to sentence buffer
             sentence_buffer += token
-            
+
             # Send heartbeat if needed (every 20 seconds)
             if current_time - last_heartbeat_time >= 20.0:
                 # Check connection before sending heartbeat
@@ -246,10 +246,10 @@ async def _stream_chat_completion(
                     logger.info("Client disconnected during heartbeat check, cancelling stream")
                     stream_cancelled = True
                     break
-                    
+
                 yield ": keepalive\n\n"
                 last_heartbeat_time = current_time
-            
+
             # Check if we should flush the buffer
             should_flush = (
                 # Found sentence boundary
@@ -259,14 +259,14 @@ async def _stream_chat_completion(
                 # Force flush every 50 tokens to prevent excessive buffering
                 token_count % 50 == 0
             )
-            
+
             if should_flush:
                 # Check connection before sending chunk
                 if await http_request.is_disconnected():
                     logger.info("Client disconnected during chunk send, cancelling stream")
                     stream_cancelled = True
                     break
-                
+
                 # Send buffered content
                 chunk = ChatCompletionStreamResponse(
                     id=response_id,
@@ -278,10 +278,10 @@ async def _stream_chat_completion(
                     ],
                 )
                 yield f"data: {chunk.model_dump_json()}\n\n"
-                
+
                 sentence_buffer = ""
                 last_flush_time = current_time
-        
+
         # Only send completion if stream wasn't cancelled
         if not stream_cancelled:
             # Flush any remaining content
@@ -305,7 +305,7 @@ async def _stream_chat_completion(
             )
             yield f"data: {final_chunk.model_dump_json()}\n\n"
             yield "data: [DONE]\n\n"
-            
+
             logger.info(f"Stream completed successfully with {token_count} tokens")
         else:
             logger.info(f"Stream cancelled after {token_count} tokens")
@@ -334,5 +334,5 @@ async def _stream_chat_completion(
                     token_stream.close()
             except Exception as e:
                 logger.debug(f"Error closing token stream: {e}")
-                
+
         logger.debug("Stream cleanup completed")

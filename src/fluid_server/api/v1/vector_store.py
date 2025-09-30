@@ -10,17 +10,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ...managers.embedding_manager import EmbeddingManager
-from ...storage.lancedb_client import LanceDBClient, VectorDocument
 from ...models.openai import (
+    CollectionInfo,
+    CollectionListResponse,
+    CreateCollectionRequest,
     VectorStoreInsertRequest,
     VectorStoreInsertResponse,
     VectorStoreSearchRequest,
     VectorStoreSearchResponse,
     VectorStoreSearchResult,
-    CollectionListResponse,
-    CollectionInfo,
-    CreateCollectionRequest
 )
+from ...storage.lancedb_client import LanceDBClient, VectorDocument
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/vector_store")
@@ -51,14 +51,14 @@ async def create_collection(
             content_type=request.content_type,
             overwrite=request.overwrite
         )
-        
+
         return JSONResponse(content={
             "collection_name": request.name,
             "dimension": request.dimension,
             "content_type": request.content_type,
             "created": True
         })
-        
+
     except Exception as e:
         logger.error(f"Error creating collection '{request.name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -74,7 +74,7 @@ async def list_collections(
     try:
         collection_names = await lancedb_client.list_collections()
         collections = []
-        
+
         for name in collection_names:
             try:
                 stats = await lancedb_client.get_collection_stats(name)
@@ -94,12 +94,12 @@ async def list_collections(
                         content_types=["text"]
                     )
                 )
-        
+
         return CollectionListResponse(
             collections=collections,
             total_collections=len(collections)
         )
-        
+
     except Exception as e:
         logger.error(f"Error listing collections: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -120,26 +120,26 @@ async def insert_documents(
                 status_code=503,
                 detail="Embeddings functionality is disabled"
             )
-        
+
         # Extract text content for embedding generation
         texts = [doc.content for doc in request.documents]
-        
+
         # Generate embeddings using specified model or default
         model_name = request.model or embedding_manager.config.embedding_model
         embeddings = await embedding_manager.get_text_embeddings(
             texts=texts,
             model_name=model_name
         )
-        
+
         # Create VectorDocument objects
         vector_documents = []
         inserted_ids = []
-        
-        for i, (doc, embedding) in enumerate(zip(request.documents, embeddings)):
+
+        for i, (doc, embedding) in enumerate(zip(request.documents, embeddings, strict=False)):
             # Use provided ID or generate one
             doc_id = doc.id if doc.id else str(uuid.uuid4())
             inserted_ids.append(doc_id)
-            
+
             vector_doc = VectorDocument(
                 id=doc_id,
                 content=doc.content,
@@ -148,23 +148,23 @@ async def insert_documents(
                 content_type=doc.content_type
             )
             vector_documents.append(vector_doc)
-        
+
         # Insert into LanceDB
         await lancedb_client.insert_documents(
             collection_name=request.collection,
             documents=vector_documents
         )
-        
+
         logger.info(
             f"Inserted {len(vector_documents)} documents into collection '{request.collection}'"
         )
-        
+
         return VectorStoreInsertResponse(
             inserted_count=len(vector_documents),
             collection=request.collection,
             ids=inserted_ids
         )
-        
+
     except Exception as e:
         logger.error(f"Error inserting documents: {e}")
         if isinstance(e, HTTPException):
@@ -187,7 +187,7 @@ async def search_vectors(
                 status_code=503,
                 detail="Embeddings functionality is disabled"
             )
-        
+
         # Generate query embedding based on query type
         if request.query_type != "text":
             raise HTTPException(
@@ -207,7 +207,7 @@ async def search_vectors(
             model_name=model_name
         )
         query_vector = query_embeddings[0]
-        
+
         # Perform vector search
         search_results = await lancedb_client.search_vectors(
             collection_name=request.collection,
@@ -215,7 +215,7 @@ async def search_vectors(
             limit=request.limit,
             filter_condition=request.filter
         )
-        
+
         # Convert results to response format
         results = []
         for result in search_results:
@@ -228,18 +228,18 @@ async def search_vectors(
                     content_type=result.get("content_type", "text")
                 )
             )
-        
+
         logger.info(
             f"Found {len(results)} results for {request.query_type} query in collection '{request.collection}'"
         )
-        
+
         return VectorStoreSearchResponse(
             results=results,
             collection=request.collection,
             query_type=request.query_type,
             total_results=len(results)
         )
-        
+
     except Exception as e:
         logger.error(f"Error searching vectors: {e}")
         if isinstance(e, HTTPException):
@@ -259,20 +259,20 @@ async def get_document(
     """
     try:
         document = await lancedb_client.get_document(collection, document_id)
-        
+
         if not document:
             raise HTTPException(
                 status_code=404,
                 detail=f"Document '{document_id}' not found in collection '{collection}'"
             )
-        
+
         return JSONResponse(content={
             "id": document.id,
             "content": document.content,
             "metadata": document.metadata,
             "content_type": document.content_type
         })
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -291,7 +291,7 @@ async def delete_document(
     """
     try:
         success = await lancedb_client.delete_document(collection, document_id)
-        
+
         if success:
             return JSONResponse(content={
                 "deleted": True,
@@ -303,7 +303,7 @@ async def delete_document(
                 status_code=404,
                 detail=f"Document '{document_id}' not found in collection '{collection}'"
             )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -322,7 +322,7 @@ async def get_collection_stats(
     try:
         stats = await lancedb_client.get_collection_stats(collection)
         return JSONResponse(content=stats)
-        
+
     except Exception as e:
         logger.error(f"Error getting collection stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -4,9 +4,9 @@ Base embedding runtime class for all embedding model backends
 
 import time
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any, List, Union
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
 
 class EmbeddingType(Enum):
@@ -49,10 +49,10 @@ class BaseEmbeddingRuntime(ABC):
 
     @abstractmethod
     async def embed(
-        self, 
-        inputs: Union[str, List[str]], 
+        self,
+        inputs: str | list[str],
         embedding_type: EmbeddingType
-    ) -> List[List[float]]:
+    ) -> list[list[float]]:
         """
         Generate embeddings for the given inputs
         
@@ -71,7 +71,7 @@ class BaseEmbeddingRuntime(ABC):
         pass
 
     @abstractmethod
-    def get_supported_types(self) -> List[EmbeddingType]:
+    def get_supported_types(self) -> list[EmbeddingType]:
         """Get list of supported embedding types for this runtime"""
         pass
 

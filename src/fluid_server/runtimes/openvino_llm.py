@@ -46,7 +46,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
             # Lazy imports - only import when actually loading
             import openvino as ov
             import openvino_genai as ov_genai
-            
+
             self.ov = ov
             self.ov_genai = ov_genai
 
@@ -167,7 +167,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
     ) -> None:
         """Synchronous streaming generation for use in executor - now uses queue"""
         pending_futures = []
-        
+
         def _safe_queue_put(item, timeout=1.0):
             """Safely put item in queue and wait for completion"""
             try:
@@ -203,7 +203,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
 
                 self.last_used = time.time()
                 self.pipeline.generate(prompt, config, streamer_callback)
-        except Exception as e:
+        except Exception:
             # Signal completion/error by sending None
             _safe_queue_put(None)
             raise
@@ -212,7 +212,7 @@ class OpenVINOLLMRuntime(BaseRuntime):
             for future in pending_futures:
                 if not future.done():
                     future.cancel()
-            
+
             # Signal completion by sending None
             try:
                 completion_future = asyncio.run_coroutine_threadsafe(
@@ -251,13 +251,13 @@ class OpenVINOLLMRuntime(BaseRuntime):
                 try:
                     # Get token with timeout to handle hung generators
                     token = await asyncio.wait_for(token_queue.get(), timeout=30.0)
-                    
+
                     if token is None:  # End of stream signal
                         break
-                        
+
                     yield token
                     await asyncio.sleep(0)  # Allow other async operations
-                    
+
                 except asyncio.TimeoutError:
                     logger.warning("Token generation timeout - ending stream")
                     break
